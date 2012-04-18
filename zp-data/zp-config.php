@@ -31,7 +31,7 @@ $conf['db_software'] = 'MySQL';
 $conf['mysql_user'] = 'root';
 $conf['mysql_pass'] = '';
 $conf['mysql_host'] = 'localhost';
-$conf['mysql_database'] = 'zptest';
+$conf['mysql_database'] = 'hisrocket_dev';
 // If you're sharing the database with other tables, use a prefix to be safe.
 $conf['mysql_prefix'] = 'zp_';
 
