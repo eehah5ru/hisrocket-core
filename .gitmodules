@@ -1,3 +1,6 @@
 [submodule "themes/hisrocket-theme"]
 	path = themes/hisrocket-theme
 	url = /Users/nicolaspesivcev/Sites/hisrocket-theme
+[submodule "themes/hisrocket-sindle-image"]
+	path = themes/hisrocket-sindle-image
+	url = /Users/nicolaspesivcev/Sites/hisrocket-theme
