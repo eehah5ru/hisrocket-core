@@ -1,0 +1,7 @@
+date	requestor's IP	type	user ID	user name	outcome	authority	additional information
+2011-09-14 15:30:21	::1	Installed			Success	zp_admin	version 1.4.1.3[7990]
+2011-09-14 15:31:27	::1	Request add user			Success	zp_admin	admin
+2011-09-14 15:31:59	::1	Request add user			Success	zp_admin	admin
+2011-09-14 15:31:59	::1	Blocked access			Failed		/~nicolaspesivcev/zenphoto/zp-core/admin-users.php?saved=&amp;xsrftoken=83c414b22228502495b5ae9e132060fe6972690c&amp;show-admin=&amp;page=users
+2011-11-14 17:46:55	::1	Admin login	admin	Nicolay Spesivtsev	Success	zp_admin
+2012-02-08 23:14:33	::1	Admin login	admin	Nicolay Spesivtsev	Success	zp_admin

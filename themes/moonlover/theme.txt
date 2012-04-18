@@ -1,0 +1,6 @@
+# Zenphoto theme definition file
+name::Moon Lover
+author::Tanarat Terkthaw - Artz
+version::0.1
+date::10/07/2006
+desc::based on The dark default theme, mod by <a href="mailto:art@tanarat.com">Artz</a>. <a href="http://www.tanarat.com/blogs">View my blogs</a>.

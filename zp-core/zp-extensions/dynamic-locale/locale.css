@@ -1,0 +1,44 @@
+/* language selectbox effect.
+------------------------------------- */
+.languageselect {
+	padding-left: 24px;
+	background-repeat: no-repeat;
+	background-position: center left;
+}
+
+.languageoption {
+	padding-left: 24px;
+	margin-bottom: 2px;
+	background-position: center left;
+}
+
+/*
+.flags img {
+	border: none;
+	vertical-align:-15%;
+	height:10px;
+	margin: 2px;
+}
+*/
+
+.flags li {
+	display: inline;
+/*	padding: 5px; */
+/*	margin: 0px 2px 0 2px;*/
+	text-align:center;
+}
+.flags li a {
+	text-decoration:none;
+	text-align:center;
+	vertical-align:middle;		
+}
+
+.currentLanguage {
+	font-style:bold;
+/*
+	border-top: 1px solid #BAC9CF;
+	border-left: 1px solid #BAC9CF;
+	border-right: 1px solid #BAC9CF;
+	border-bottom: 1px solid #BAC9CF;
+*/
+}

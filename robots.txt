@@ -1,0 +1,8 @@
+User-agent: *
+Disallow: /~nicolaspesivcev/zenphoto/albums/
+Disallow: /~nicolaspesivcev/zenphoto/cache/
+Disallow: /~nicolaspesivcev/zenphoto/themes/
+Disallow: /~nicolaspesivcev/zenphoto/zp-core/
+Disallow: /~nicolaspesivcev/zenphoto/zp-data/
+Disallow: /~nicolaspesivcev/zenphoto/page/search/
+Disallow: /~nicolaspesivcev/zenphoto/uploaded/

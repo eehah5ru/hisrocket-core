@@ -1,0 +1,6 @@
+# Zenphoto theme definition file
+name::simple+
+author::Nils K. Windisch
+version::0.3
+date::2007-10-20
+desc::a rather simple theme with support for slimbox (like lighbox) and reflections by <a href="http://nilswindisch.de/">Nils K. Windisch</a>. you have to edit the contact link and upload only images with the desired end result size (800px longest border = recommended). <a href="http://nilswindisch.de/code/zenphoto/theme-simple-plus/" target="_blank">install instruction here</a>.
