@@ -59,6 +59,8 @@ function printLanguageSelector($flags=NULL) {
 
 			$currentValue = getOption('locale');
 			foreach ($_languages as $text=>$lang) {
+				$t = explode("_", $lang);
+				$lang_abbrev = $t[0];
 				?>
 				<li<?php if ($lang==$currentValue) echo ' class="currentLanguage"'; ?>>
 					<?php
@@ -73,7 +75,7 @@ function printLanguageSelector($flags=NULL) {
 						$flag = WEBPATH.'/'.ZENFOLDER.'/locale/missing_flag.png';
 					}
 					?>
-					<img src="<?php echo $flag; ?>" alt="<?php echo $text; ?>" title="<?php echo $text; ?>" />
+					<?php echo $lang_abbrev ?>
 					<?php
 					if ($lang!=$currentValue) {
 						?>

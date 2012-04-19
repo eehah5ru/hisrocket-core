@@ -30,7 +30,7 @@
 .flags li a {
 	text-decoration:none;
 	text-align:center;
-	vertical-align:middle;		
+/*	vertical-align:middle;		*/
 }
 
 .currentLanguage {
