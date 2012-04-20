@@ -13,9 +13,19 @@ function upload_head() {
 	<script type="text/javascript" src="<?php echo WEBPATH.'/'.ZENFOLDER;?>/admin-uploadify/swfobject.js"></script>
 	<script type="text/javascript" src="<?php echo WEBPATH.'/'.ZENFOLDER;?>/js/sprintf.js"></script>
 	<?php
+	return '';
 }
 
-function upload_form($uploadlimit) {
+function upload_form($uploadlimit, $passedalbum) {
+	?>
+	<input type="hidden" name="existingfolder" id="existingfolder" value="false" />
+	<input type="hidden" name="folder" id="folderslot" value="<?php echo html_encode($passedalbum); ?>" />
+	<input type="hidden" name="albumtitle" id="albumtitleslot" value="" />
+	<input type="hidden" name="publishalbum" id="publishalbumslot" value="" />
+	<?php
+}
+
+function upload_extra($uploadlimit, $passedalbum) {
 	global $_zp_current_admin_obj, $upload_extensions;
 	?>
 	<script type="text/javascript">
@@ -92,7 +102,7 @@ function upload_form($uploadlimit) {
 		<a href="javascript:$('#fileUpload').uploadifyClearQueue()"><img src="images/fail.png" alt="" /><?php echo gettext("Cancel"); ?></a>
 	<br clear="all" /><br />
 	</p>
-	<p id="uploadswitch"><?php echo gettext('If your upload does not work try the <a href="javascript:switchUploader(\'admin-upload.php?uploadtype=httpupload\');" >jquery file upload</a> or use FTP instead.'); ?></p>
 	<?php
 }
+
 ?>

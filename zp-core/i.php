@@ -207,7 +207,7 @@ if (file_exists($newfile) & !$adminrequest) {
 
 if ($process) { // If the file hasn't been cached yet, create it.
 	// setup standard image options from the album theme if it exists
-	if (!cacheImage_protected($newfilename, $imgfile, $args, $allowWatermark, $theme, $album)) {
+	if (!cacheImage($newfilename, $imgfile, $args, $allowWatermark, $theme, $album)) {
 		imageError(gettext('Image processing resulted in a fatal error.'));
 	}
 	$fmt = filemtime($newfile);
@@ -217,7 +217,6 @@ $path = $protocol . '/'.CACHEFOLDER . pathurlencode(imgSrcURI($newfilename));
 
 if (!$debug) {
 	// ... and redirect the browser to it.
-	header('Last-Modified: ' . gmdate('D, d M Y H:i:s', $fmt).' GMT');
 	$suffix = getSuffix($newfilename);
 	switch ($suffix) {
 		case 'bmp':
@@ -234,6 +233,7 @@ if (!$debug) {
 			pageError(405, gettext("Method Not Allowed"));
 			exit();
 	}
+	header('Last-Modified: ' . gmdate('D, d M Y H:i:s', $fmt).' GMT');
 	header('Content-Type: image/'.$suffix);
 	header('Location: ' . $path, true, 301);
 	exit();

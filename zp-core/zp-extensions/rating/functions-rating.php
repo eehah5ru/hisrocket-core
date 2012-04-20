@@ -58,4 +58,18 @@ function getCurrentPageObject() {
 			return NULL;
 	}
 }
+
+/**
+ *
+ * Gets the unique id of the poster. {in this case based on the IP address}
+ * @return string
+ */
+function getRatingID() {
+	if (getOption('rating_hash_ip')) {
+		return sha1(getUserIP());
+	} else {
+		return getUserIP();
+	}
+
+}
 ?>

@@ -24,7 +24,7 @@
 
 $plugin_description = gettext("Adds a theme function to call a slideshow either based on jQuery (default) or Flash using Flowplayer3 if installed.");
 $plugin_author = "Malte Müller (acrylian), Stephen Billard (sbillard), Don Peterson (dpeterson)";
-$plugin_version = '1.4.1';
+$plugin_version = '1.4.2';
 $option_interface = 'slideshowOptions';
 
 /**
@@ -48,12 +48,13 @@ class slideshowOptions {
 		setOptionDefault('slideshow_flow_player_width', '640');
 		setOptionDefault('slideshow_flow_player_height', '480');
 		setOptionDefault('slideshow_colorbox_imagetype', 'sizedimage');
+		setOptionDefault('slideshow_colorbox_imagetitle', 1);
 	}
 
 
 	function getOptionsSupported() {
 		return array(	gettext('Slide width') => array('key' => 'slideshow_width', 'type' => OPTION_TYPE_TEXTBOX,
-										'desc' => gettext("Width of the images in the slideshow. <em>[jQuery Cycle mode option]</em><br />If empty the theme options <em>image size</em> is used.")),
+										'desc' => gettext("Width of the images in the slideshow. <em>[jQuery Cycle/Colorbox sizedimage mode option]</em><br />If empty the theme options <em>image size</em> is used.")),
 									gettext('Slide height') => array('key' => 'slideshow_height', 'type' => OPTION_TYPE_TEXTBOX,
 										'desc' => gettext("Height of the images in the slideshow. <em>[jQuery Cycle mode option]</em><br />If empty the theme options <em>image size</em> is used.")),
 									gettext('Watermark') => array('key' => 'slideshow_watermark', 'type' => OPTION_TYPE_CHECKBOX,
@@ -79,7 +80,9 @@ class slideshowOptions {
 									gettext('flow player width') => array('key' => 'slideshow_flow_player_width', 'type' => OPTION_TYPE_TEXTBOX,
 										'desc' => gettext("Width of the Flowplayer display for the slideshow <em>(Flash mode)</em>.")),
 									gettext('flow player height') => array('key' => 'slideshow_flow_player_height', 'type' => OPTION_TYPE_TEXTBOX,
-										'desc' => gettext("Height of the Flowplayer display for the slideshow <em>(Flash mode)</em>."))
+										'desc' => gettext("Height of the Flowplayer display for the slideshow <em>(Flash mode)</em>.")),
+									gettext('Colorbox image title') => array('key' => 'slideshow_colorbox_imagetitle', 'type' => OPTION_TYPE_CHECKBOX,
+										'desc' => gettext("If the image title should be shown at the bottom of the Colorbox <em>[jQuery Colorbox mode option]</em>."))
 		);
 	}
 
@@ -136,7 +139,7 @@ function printSlideShowLink($linktext='', $linkstyle='') {
 	$option = getOption('slideshow_mode');
 	switch($option) {
 		case 'jQuery':
-	 	case 'flash':
+		case 'flash':
 			if($numberofimages > 1) {
 				?>
 				<form name="slideshow_<?php echo $slideshow_instance; ?>" method="post"	action="<?php echo $slideshowlink; ?>">
@@ -165,7 +168,7 @@ function printSlideShowLink($linktext='', $linkstyle='') {
 				break;
 			}
 			if($numberofimages > 1) {
-				if(in_context(ZP_SEARCH) || in_context(ZP_SEARCH_LINKED)) {
+				if ((in_context(ZP_SEARCH_LINKED) && !in_context(ZP_ALBUM_LINKED)) || in_context(ZP_SEARCH) && is_null($_zp_current_album)) {
 					$images = $_zp_current_search->getImages(0);
 				} else {
 					$images = $_zp_current_album->getImages(0);
@@ -184,6 +187,7 @@ function printSlideShowLink($linktext='', $linkstyle='') {
 							previous: '<?php echo gettext("previous"); ?>',
 							next: '<?php echo gettext("next"); ?>',
 							close: '<?php echo gettext("close"); ?>',
+							current : '{current}/{total}',
 							maxWidth:'98%',
 							maxHeight:'98%',
 							photo: true
@@ -227,18 +231,25 @@ function printSlideShowLink($linktext='', $linkstyle='') {
 								$style = ' style="display:none"';
 							}
 						}
+						if(getOption('slideshow_watermark')) {
+							$thumbStandin = true;
+						} else {
+							$thumbStandin = false;
+						}
 						switch(getOption('slideshow_colorbox_imagetype')) {
 							case 'fullimage':
 								$imagelink = $imgobj->getFullImage();
 								break;
 							case 'sizedimage':
-								$imagelink = $imgobj->getSizedImage(getOption("slideshow_width"));
+								$imagelink = $imgobj->getCustomImage(getOption("slideshow_width"), NULL, NULL, NULL, NULL, NULL, NULL, $thumbStandin);
 								break;
 						}
+						$imagetitle = '';
+						if(getOption('slideshow_colorbox_imagetitle')) {
+							$imagetitle = html_encode(strip_tags($imgobj->getTitle()));
+						}
 						?>
-						<p>
-						<a href="<?php echo html_encode($imagelink); ?>" rel="slideshow"<?php echo $style; ?> title="<?php echo html_encode(strip_tags($imgobj->getTitle())); ?>"><?php echo $linktext; ?></a>
-						</p>
+						<a href="<?php echo html_encode($imagelink); ?>" rel="slideshow"<?php echo $style; ?> title="<?php echo $imagetitle; ?>"><?php echo $linktext; ?></a>
 						<?php
 					}
 				}
@@ -274,7 +285,7 @@ function is_valid($image, $valid_types) {
  *
  * b) Calling directly via printSlideShow() function (jQuery mode recommended)
  * Call printSlideShowJS() function in the head section of the theme page you want to use the slideshow on.
- * Them place the printSlideShow() function where you want the slideshow to appear and set $albumobj and if needed $imageobj.
+ * Then place the printSlideShow() function where you want the slideshow to appear and set $albumobj and if needed $imageobj.
  * The controls are disabled automatically.
  *
  * NOTE: The jQuery mode does not support movie and audio files anymore. If you need to show them please use the Flash mode.
@@ -296,7 +307,7 @@ function printSlideShow($heading = true, $speedctl = false, $albumobj = "", $ima
 		exit();
 	}
 	global $_zp_flash_player, $_zp_current_image, $_zp_current_album, $_zp_gallery;
-  $imagenumber = 0;
+	$imagenumber = 0;
 	//getting the image to start with
 	if(!empty($_POST['imagenumber']) AND !is_object($imageobj)) {
 		$imagenumber = sanitize_numeric($_POST['imagenumber'])-1; // slideshows starts with 0, but zp with 1.
@@ -304,7 +315,7 @@ function printSlideShow($heading = true, $speedctl = false, $albumobj = "", $ima
 		makeImageCurrent($imageobj);
 		$imagenumber = (imageNumber()-1);
 	}
-  // set pagenumber to 0 if not called via POST link
+	// set pagenumber to 0 if not called via POST link
 	if(isset($_POST['pagenr'])) {
 		$pagenumber = sanitize_numeric($_POST['pagenr']);
 	} else {
@@ -383,6 +394,11 @@ function printSlideShow($heading = true, $speedctl = false, $albumobj = "", $ima
 	}
 	if($shuffle) shuffle($images);
 	$showdesc = getOption("slideshow_showdesc");
+	if(getOption('slideshow_watermark')) {
+		$thumbStandin = true;
+	} else {
+		$thumbStandin = false;
+	}
 	// slideshow display section
 	switch($option) {
 		case "jQuery":
@@ -412,9 +428,13 @@ function printSlideShow($heading = true, $speedctl = false, $albumobj = "", $ima
 							if ($ext) {
 								makeImageCurrent($image);
 								if($crop) {
-									$img = getCustomImageURL(NULL, $width, $height,$width, $height);
+									$img = getCustomImageURL(NULL,$width,$height,$width,$height,NULL,NULL,$thumbStandin);
 								} else {
-									$img = getCustomSizedImageMaxSpace($width,$height);
+									if($thumbStandin) {
+										$img = getCustomSizedImageThumbMaxSpace($width,$height);
+									} else {
+										$img = getCustomSizedImageMaxSpace($width,$height);
+									}
 								}
 								//$img = WEBPATH . '/' . ZENFOLDER . '/i.php?a=' . pathurlencode($image->album->name) . '&i=' . pathurlencode($filename) . '&s=' . $imagesize;
 								echo 'ImageList[' . $cntr . '] = "' . $img . '";'. "\n";
@@ -579,9 +599,9 @@ function printSlideShow($heading = true, $speedctl = false, $albumobj = "", $ima
 						} else {
 							makeImageCurrent($image);
 							if($crop) {
-								printCustomSizedImage('', NULL, $width, $height, $width, $height, NULL, NULL, NULL, NULL, false);
+								printCustomSizedImage('',NULL,$width, $height, $width, $height, NULL, NULL, NULL, NULL, $thumbStandin);
 							} else {
-								printCustomSizedImageMaxSpace($alt='',$width,$height,NULL,NULL,false);
+								printCustomSizedImageMaxSpace('',$width,$height,NULL,NULL,$thumbStandin);
 							}
 							//echo "<img src='".WEBPATH."/".ZENFOLDER."/i.php?a=".pathurlencode($folder)."&i=".urlencode($filename)."&s=".$imagesize."' alt='".html_encode($image->getTitle())."' title='".html_encode($image->getTitle())."' />\n";
 						}
@@ -643,9 +663,9 @@ function printSlideShow($heading = true, $speedctl = false, $albumobj = "", $ima
 						$image = newImage($album, $filename);
 						$imagepath = FULLWEBPATH.ALBUM_FOLDER_EMPTY.pathurlencode($folder)."/".pathurlencode($filename);
 					}
-				$ext = is_valid($filename, array('jpg','jpeg','gif','png','flv','mp3','mp4'));
+				$ext = is_valid($filename, array('jpg','jpeg','gif','png','flv','mp3','mp4','fla','m4v','m4a'));
 				if ($ext) {
-					if (($ext == "flv") || ($ext == "mp3") || ($ext == "mp4")) {
+					if ($ext == "flv" || $ext == "mp3" || $ext == "mp4" || $ext == "fla" || $ext == "m4v" || $ext == "m4a") {
 						$duration = "";
 					} else {
 						$duration = ", duration: ".getOption("slideshow_timeout")/1000;

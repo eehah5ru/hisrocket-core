@@ -14,7 +14,7 @@
 
 $plugin_description = gettext("Prints an e-mail contact so that visitors may e-mail the site administrator.");
 $plugin_author = "Malte Müller (acrylian), Stephen Billard (sbillard)";
-$plugin_version = '1.4.1';
+$plugin_version = '1.4.2';
 $option_interface = 'contactformOptions';
 
 /**
@@ -75,9 +75,6 @@ class contactformOptions {
 									gettext('New message link text') => array('key' => 'contactform_newmessagelink', 'type' => OPTION_TYPE_TEXTAREA,
 										'order' => 16,
 										'desc' => gettext("The text for the link after the thanks text to return to the contact page to send another message.")),
-									gettext('Mail address') => array('key' => 'contactform_mailaddress', 'type' => OPTION_TYPE_TEXTBOX,
-										'order' => 17,
-										'desc' => gettext("The e-mail address the messages should be sent to. Enter more than one address separated by comma without any spaces.")),
 									gettext('Require confirmation') => array('key' => 'contactform_confirm', 'type' => OPTION_TYPE_CHECKBOX,
 										'order' => 0,
 										'desc' => gettext("If checked, a confirmation form will be presented before sending the contact message.")),
@@ -89,7 +86,7 @@ class contactformOptions {
 										'desc' => gettext("The text for the note about sending a copy to the address provided in case that option is set.")),
 									gettext('Mail address') => array('key' => 'contactform_mailaddress', 'type' => OPTION_TYPE_TEXTBOX,
 										'order' => 17,
-										'desc' => gettext("The e-mail address the messages should be sent to. Enter more than one address separated by comma without any spaces.")),
+										'desc' => gettext("The e-mail address the messages should be sent to. Enter more than one address separated by semicolon without any spaces.")),
 									gettext('Title field') => array('key' => 'contactform_title', 'type' => OPTION_TYPE_RADIO, 'buttons' => $list,
 										'order' => 1,
 										'desc' => sprintf($mailfieldinstruction,gettext("Title field"))),
@@ -201,8 +198,8 @@ function printContactForm($subject_override='') {
 
 		// CAPTCHA start
 		if(getOption("contactform_captcha")) {
-			$code_ok = trim(sanitize($_POST['code_h']));
-			$code = trim(sanitize($_POST['code']));
+			$code_ok = trim(sanitize(@$_POST['code_h']));
+			$code = trim(sanitize(@$_POST['code']));
 			if (!$_zp_captcha->checkCaptcha($code, $code_ok)) { $error[5] = gettext("the correct CAPTCHA verification code"); } // no ticket
 		}
 		// CAPTCHA end
@@ -238,18 +235,19 @@ function printContactForm($subject_override='') {
 			$mailaddress = $mailcontent['email'];
 			$name = $mailcontent['name'];
 			$subject = $mailcontent['subject']." (".getBareGalleryTitle().")";
-			$message = $mailcontent['message']."\n\n";
+			$message = '';
 			if(!empty($mailcontent['title'])) { $message .= $mailcontent['title']; }
 			if(!empty($mailcontent['name'])) { $message .= $mailcontent['name']."\n"; }
+			if(!empty($mailcontent['email'])) { $message .= $mailcontent['email']."\n"; }
 			if(!empty($mailcontent['company'])) { $message .= $mailcontent['company']."\n"; }
 			if(!empty($mailcontent['street'])) { $message .= $mailcontent['street']."\n"; }
 			if(!empty($mailcontent['city'])) { $message .= $mailcontent['city']."\n"; }
 			if(!empty($mailcontent['state'])) { $message .= $mailcontent['state']."\n"; }
 			if(!empty($mailcontent['postal'])) { $message .= $mailcontent['postal']."\n"; }
 			if(!empty($mailcontent['country'])) { $message .= $mailcontent['country']."\n"; }
-			if(!empty($mailcontent['email'])) { $message .= $mailcontent['email']."\n"; }
 			if(!empty($mailcontent['phone'])) { $message .= $mailcontent['phone']."\n"; }
 			if(!empty($mailcontent['website'])) { $message .= $mailcontent['website']."\n"; }
+			$message .= "\n\n".$mailcontent['message'];
 			$message .= "\n\n";
 
 			if (getOption('contactform_confirm')) {
@@ -309,7 +307,7 @@ function printContactForm($subject_override='') {
 				<ul class="errorlist">
 					<?php
 					foreach ($msgs as $line) {
-					 	echo '<li>'.trim($line).'</li>';
+						echo '<li>'.trim($line).'</li>';
 					}
 					?>
 				</ul>

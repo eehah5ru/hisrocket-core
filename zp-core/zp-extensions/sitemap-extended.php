@@ -18,7 +18,7 @@
 $plugin_is_filter = 5|CLASS_PLUGIN;
 $plugin_description = gettext('Generates individually sitemap.org compatible XML files for use with Google and other search engines. It supports albums and images as well as optionally Zenpage pages, news articles and news categories.').'<p class="notebox">'.gettext('<strong>Note:</strong> The index links may not match if using the Zenpage option "news on index" that some themes provide! Also it does not "know" about "custom pages" outside Zenpage or any special custom theme setup!!').'</p>';
 $plugin_author = 'Malte Müller (acrylian) based on the <a href="http://github.com/Tenzer/zenphoto-sitemap">plugin</a> by Jeppe Toustrup (Tenzer) and modifications by Timo and Blue Dragonfly';
-$plugin_version = '1.4.1';
+$plugin_version = '1.4.2';
 $option_interface = 'sitemap';
 
 zp_register_filter('admin_utilities_buttons', 'sitemap_button');
@@ -140,6 +140,7 @@ class sitemap {
 										'desc' => gettext('If checked, the XML output file will be formatted using the Google XML image and video extensions where applicable.').'<p class="notebox">'.gettext('<strong>Note:</strong> Other search engines (Yahoo, Bing) might not be able to read your sitemap. Also the Google extensions cover only image and video formats. If you use custom file types that are not covered by Zenphoto standard plugins or types like .mp3, .txt and .html you should probably not use this or modify the plugin. Also, if your site is really huge think about if you really need this setting as the creation may cause extra workload of your server and result in timeouts').'</p>'),
 	gettext('Google - URL to image license') => array('key' => 'sitemap_license', 'type' => OPTION_TYPE_TEXTBOX,
 										'order' => 10,
+										'multilingual'=>true,
 										'desc' => gettext('Optional. Used only if the Google extension is checked. Must be an absolute URL address of the form: http://mydomain.com/license.html')),
 	gettext('Sitemap processing chunk') => array('key' => 'sitemap_processing_chunk', 'type' => OPTION_TYPE_TEXTBOX,
 										'order' => 11,
@@ -167,6 +168,7 @@ if(isset($_GET['sitemap'])) {
  */
 function sitemap_button($buttons) {
 	$buttons[] = array(
+								'category'=>gettext('seo'),
 								'enable'=>true,
 								'button_text'=>gettext('Sitemap tools'),
 								'formname'=>'sitemap_button',
@@ -371,9 +373,11 @@ function getSitemapAlbumList($obj,&$albumlist, $gateway) {
 	$locallist = $obj->getAlbums();
 	foreach ($locallist as $folder) {
 		$album = new Album($_zp_gallery, $folder);
-		If ($album->getShow() && $gateway($album))  {
+		if ($album->getShow() && $gateway($album))  {
 			$albumlist[] = array('folder'=>$album->name, 'date'=>$album->getDateTime(), 'title'=>$album->getTitle());
-			getSitemapAlbumList($album, $albumlist, $gateway);
+			if(!$album->isDynamic()) {
+				getSitemapAlbumList($album, $albumlist, $gateway);
+			}
 		}
 	}
 }
@@ -462,13 +466,13 @@ function getSitemapAlbums() {
 				foreach($sitemap_locales as $locale) {
 					$url = FULLWEBPATH.'/'.rewrite_path($locale.'/'.pathurlencode($albumobj->name),'?album='.pathurlencode($albumobj->name),false);
 					$data .= sitemap_echonl("\t<url>\n\t\t<loc>".$url."</loc>\n\t\t<lastmod>".$date."</lastmod>\n\t\t<changefreq>".$albumchangefreq."</changefreq>\n\t\t<priority>0.8</priority>\n");
-					printSitemapGoogleImageVideoExtras(1,$loop_index,$albumobj,$images);
+					$data .= getSitemapGoogleImageVideoExtras(1,$loop_index,$albumobj,$images,$locale);
 					$data .= sitemap_echonl("\t</url>");
 				}
 			} else {
 				$url = FULLWEBPATH.'/'.rewrite_path(pathurlencode($albumobj->name),'?album='.pathurlencode($albumobj->name),false);
 				$data .= sitemap_echonl("\t<url>\n\t\t<loc>".$url."</loc>\n\t\t<lastmod>".$date."</lastmod>\n\t\t<changefreq>".$albumchangefreq."</changefreq>\n\t\t<priority>0.8</priority>\n");
-				$data .= getSitemapGoogleImageVideoExtras(1,$loop_index,$albumobj,$images);
+				$data .= getSitemapGoogleImageVideoExtras(1,$loop_index,$albumobj,$images,NULL);
 				$data .= sitemap_echonl("\t</url>");
 			}
 			// print album pages if avaiable
@@ -478,13 +482,13 @@ function getSitemapAlbums() {
 						foreach($sitemap_locales as $locale) {
 							$url = FULLWEBPATH.'/'.rewrite_path($locale.'/'.pathurlencode($albumobj->name).'/page/'.$x,'?album='.pathurlencode($albumobj->name).'&amp;page='.$x,false);
 							$data .= sitemap_echonl("\t<url>\n\t\t<loc>".$url."</loc>\n\t\t<lastmod>".$date."</lastmod>\n\t\t<changefreq>".$albumchangefreq."</changefreq>\n\t\t<priority>0.8</priority>\n");
-							$data .= getSitemapGoogleImageVideoExtras($x,$loop_index,$albumobj,$images);
+							$data .= getSitemapGoogleImageVideoExtras($x,$loop_index,$albumobj,$images,$locale);
 							$data .= sitemap_echonl("\t</url>");
 						}
 					} else {
 						$url = FULLWEBPATH.'/'.rewrite_path(pathurlencode($albumobj->name).'/page/'.$x,'?album='.pathurlencode($albumobj->name).'&amp;page='.$x,false);
 						$data .= sitemap_echonl("\t<url>\n\t\t<loc>".$url."</loc>\n\t\t<lastmod>".$date."</lastmod>\n\t\t<changefreq>".$albumchangefreq."</changefreq>\n\t\t<priority>0.8</priority>\n");
-						$data .= getSitemapGoogleImageVideoExtras($x,$loop_index,$albumobj,$images);
+						$data .= getSitemapGoogleImageVideoExtras($x,$loop_index,$albumobj,$images,NULL);
 						$data .= sitemap_echonl("\t</url>");
 					}
 				}
@@ -581,7 +585,7 @@ function getSitemapGoogleLoopIndex($imageCount,$pageCount) {
  * Helper function to get the image/video extra entries for albums if the Google video extension is enabled
  * @return string
  */
-function getSitemapGoogleImageVideoExtras($page,$loop_index,$albumobj,$images) {
+function getSitemapGoogleImageVideoExtras($page,$loop_index,$albumobj,$images,$locale) {
 	if(getOption('sitemap_google') && !empty($loop_index)) {
 		$data = '';
 		$host = SERVER_PROTOCOL.'://'.html_encode($_SERVER["HTTP_HOST"]);
@@ -596,19 +600,19 @@ function getSitemapGoogleImageVideoExtras($page,$loop_index,$albumobj,$images) {
 			if ($imageobj->getState()) { $location .= $imageobj->getState() .', ' ; }
 			if ($imageobj->getCountry()) { $location .= $imageobj->getCountry(); }
 			$license = getOption('sitemap_license');
-			$path = FULLWEBPATH.'/'.rewrite_path(pathurlencode($albumobj->name).'/'.urlencode($imageobj->filename).getOption('mod_rewrite_image_suffix'),'?album='.pathurlencode($albumobj->name).'&amp;image='.urlencode($imageobj->filename),false);
+			$path = FULLWEBPATH.'/'.rewrite_path($locale.'/'.pathurlencode($albumobj->name).'/'.urlencode($imageobj->filename).IM_SUFFIX,'?album='.pathurlencode($albumobj->name).'&amp;image='.urlencode($imageobj->filename),false);
 			if($ext != '.mp3' && $ext != '.txt' && $ext != '.html') { // audio is not coverered specifically by Google currently
 				if(isImageVideo($imageobj) && $ext != '.mp3') {
-					$data .= sitemap_echonl("\t\t<video:video>\n\t\t\t<video:thumbnail_loc>".$host.html_encode($imageobj->getThumb())."</video:thumbnail_loc>\n\t\t\t<video:title>".$imageobj->getTitle()."</video:title>");
+					$data .= sitemap_echonl("\t\t<video:video>\n\t\t\t<video:thumbnail_loc>".$host.html_encode($imageobj->getThumb())."</video:thumbnail_loc>\n\t\t\t<video:title>".html_encode(get_language_string($imageobj->get('title'),$locale))."</video:title>");
 					if ($imageobj->getDesc()) {
-						$data .= sitemap_echonl("\t\t\t<video:description>".$imageobj->getDesc()."</video:description>");
+						$data .= sitemap_echonl("\t\t\t<video:description>".html_encode(strip_tags(get_language_string($imageobj->get('desc'),$locale)))."</video:description>");
 					}
 					$data .= sitemap_echonl("\t\t\t<video:content_loc>".$host.pathurlencode($imageobj->getFullImage())."</video:content_loc>");
 					$data .= sitemap_echonl("\t\t</video:video>");
 				} else { // this might need to be extended!
-					$data .= sitemap_echonl("\t\t<image:image>\n\t\t\t<image:loc>".$host.html_encode($imageobj->getSizedImage(getOption('image_size')))."</image:loc>\n\t\t\t<image:title>".$imageobj->getTitle()."</image:title>");
+					$data .= sitemap_echonl("\t\t<image:image>\n\t\t\t<image:loc>".$host.html_encode($imageobj->getSizedImage(getOption('image_size')))."</image:loc>\n\t\t\t<image:title>".html_encode(get_language_string($imageobj->get('title'),$locale))."</image:title>");
 					if ($imageobj->getDesc()) {
-						$data .= sitemap_echonl("\t\t\t<image:caption>".$imageobj->getDesc()."</image:caption>");
+						$data .= sitemap_echonl("\t\t\t<image:caption>".html_encode(strip_tags(get_language_string($imageobj->get('desc'),$locale)))."</image:caption>");
 					}
 					if (!empty($license)) {
 						$data .= sitemap_echonl("\t\t\t<image:license>".$license."</image:license>");
@@ -728,7 +732,7 @@ function getSitemapZenpageNewsArticles() {
 		$data = '';
 		$sitemap_locales = generateLanguageList();
 		$changefreq = getOption('sitemap_changefreq_news');
-		$articles = $_zp_zenpage->getNewsArticles('','published',true,"date","desc");
+		$articles = $_zp_zenpage->getArticles('','published',true,"date","desc");
 		if($articles) {
 			$data .= sitemap_echonl('<?xml version="1.0" encoding="UTF-8"?>');
 			$data .= sitemap_echonl('<urlset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd" xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');

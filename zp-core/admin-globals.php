@@ -6,6 +6,7 @@
 
 // force UTF-8 Ø
 
+require_once(dirname(__FILE__).'/functions-basic.php');
 if (session_id() == '') {
 	// force session cookie to be secure when in https
 	if(secureServer()) {
@@ -14,21 +15,27 @@ if (session_id() == '') {
 	}
 	session_start();
 }
+if (SERVER_PROTOCOL == 'https_admin') {
+	// force https login
+	if (!isset($_SERVER["HTTPS"])) {
+		$redirect= "https://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+		header("Location:$redirect");
+		exit();
+	}
+}
+require_once(dirname(__FILE__).'/admin-functions.php');
 
 $sortby = array(gettext('Filename') => 'filename',
 								gettext('Date') => 'date',
 								gettext('Title') => 'title',
 								gettext('ID') => 'id',
 								gettext('Filemtime') => 'mtime',
-								gettext('Owner') => 'owner'
+								gettext('Owner') => 'owner',
+								gettext('Published') => 'show'
 								);
 
-$_thumb_field_text =	array('ID'=>gettext('most recent'),
-														'mtime'=>gettext('oldest'),
-														'title'=>gettext('first alphabetically'),
-														'hitcounter'=>gettext('most viewed')
-											);
 
+$_zp_gallery = new Gallery();
 // setup sub-tab arrays for use in dropdown
 $zenphoto_tabs = array();
 if (zp_loggedin(OVERVIEW_RIGHTS) && !$_zp_null_account) {

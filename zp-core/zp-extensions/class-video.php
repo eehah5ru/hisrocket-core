@@ -1,23 +1,30 @@
 <?php
 /**
  * This plugin handles "video" class images
+ *
+ * @author Stephen Billard (sbillard)
  * @package classes
  */
 
 // force UTF-8 Ø
 
 $plugin_is_filter = 9|CLASS_PLUGIN;
-$plugin_description = gettext('Video and MP3/4 handling for Zenphoto. This plugin must always be enabled to use multimedia content.');
+$plugin_description = gettext('Audio (MP3,M4A,FLA) and video (MP4/M4V,FLV plus Quicktime,3GP if Quicktime is installed on the visitor system) handling for Zenphoto. This plugin must always be enabled to use multimedia content. Note that you also need to enable a multimedia player. See the info there how each format is used.');
 $plugin_author = "Stephen Billard (sbillard)";
-$plugin_version = '1.4.1';
+$plugin_version = '1.4.2';
 
 addPluginType('flv', 'Video');
+addPluginType('fla', 'Video');
 addPluginType('3gp', 'Video');
 addPluginType('mov', 'Video');
 addPluginType('mp3', 'Video');
 addPluginType('mp4', 'Video');
+addPluginType('m4v', 'Video');
+addPluginType('m4a', 'Video');
 $option_interface = 'VideoObject_Options';
 
+define('GETID3_INCLUDEPATH', SERVERPATH.'/'.ZENFOLDER.'/'.PLUGIN_FOLDER.'/class-video/getid3/');
+require_once(dirname(__FILE__).'/class-video/getid3/getid3.php');
 
 /**
  * Option class for video objects
@@ -62,7 +69,7 @@ class Video extends _Image {
 	 * @param sting $filename the filename of the image
 	 * @return Image
 	 */
-	function Video(&$album, $filename) {
+	function __construct(&$album, $filename) {
 		global $_zp_supported_images;
 		// $album is an Album object; it should already be created.
 		if (!is_object($album)) return NULL;
@@ -83,7 +90,7 @@ class Video extends _Image {
 		// This is where the magic happens...
 		$album_name = $album->name;
 		$this->updateDimensions();
-		if (parent::PersistentObject('images', array('filename'=>$filename, 'albumid'=>$this->album->id), 'filename', false, empty($album_name))) {
+		if (parent::PersistentObject('images', array('filename'=>$filename, 'albumid'=>$this->album->id), 'filename', true, empty($album_name))) {
 			$this->set('mtime', $ts = filemtime($this->localpath));
 			$this->updateMetaData();
 			$this->save();
@@ -97,14 +104,14 @@ class Video extends _Image {
 	 */
 	function updateDimensions() {
 		global $_zp_flash_player;
-		$ext = strtolower(strrchr($this->filename, "."));
-		if (is_null($_zp_flash_player) || $ext == '.3gp' || $ext == '.mov') {
+		$ext = getSuffix($this->filename);
+		if (is_null($_zp_flash_player) || $ext == '3gp' || $ext == 'mov') {
 			switch ($ext) {
-				case '.3gp':
+				case '3gp':
 					$h = getOption('zp_plugin_class-video_3gp_h');
 					$w = getOption('zp_plugin_class-video_3gp_w');
 					break;
-				case '.mov':
+				case 'mov':
 					$h = getOption('zp_plugin_class-video_mov_h');
 					$w = getOption('zp_plugin_class-video_mov_w');
 					break;
@@ -135,11 +142,20 @@ class Video extends _Image {
 				case "mp3":
 					$img = '/mp3Default.png';
 					break;
-				case "mp4":
+				case "mp4": // generic suffix for mp4 stuff - considered video
 					$img = '/mp4Default.png';
 					break;
-				case "flv":
+				case "m4v": // specific suffix for mp4 video
+					$img = '/m4vDefault.png';
+					break;
+				case "m4a": // specific suffix for mp4/AAC audio
+					$img = '/m4aDefault.png';
+					break;
+				case "flv": // suffix for flash video container
 					$img = '/flvDefault.png';
+					break;
+				case "fla": // suffix for flash audio container
+					$img = '/flaDefault.png';
 					break;
 				case "mov":
 					$img = '/movDefault.png';
@@ -254,7 +270,7 @@ class Video extends _Image {
 	 */
 	function getSizedImage($size) {
 		$width = $this->getWidth();
-		$height = $this->getHeight;
+		$height = $this->getHeight();
 		if ($width > $height) {	//portrait
 			$height = $height * $size/$width;
 		} else {
@@ -274,19 +290,22 @@ class Video extends _Image {
 		global $_zp_flash_player;
 		if (is_null($w)) $w = $this->getWidth();
 		if (is_null($h)) $h = $this->getHeight();
-		$ext = strtolower(strrchr($this->getFullImage(), "."));
+		$ext = getSuffix($this->getFullImage());
 		switch ($ext) {
-			case '.flv':
-			case '.mp3':
-			case '.mp4':
+			case 'flv':
+			case 'fla':
+			case 'mp3':
+			case 'mp4':
+			case 'm4v':
+			case 'm4a':
 				if (is_null($_zp_flash_player)) {
 					return  '<img src="' . WEBPATH . '/' . ZENFOLDER . '/images/err-noflashplayer.png" alt="'.gettext('No flash player installed.').'" />';
 				} else {
 					return $_zp_flash_player->getPlayerConfig('',$this->getTitle(), '', $w, $h);
 				}
 				break;
-			case '.3gp':
-			case '.mov':
+			case '3gp':
+			case 'mov':
 				return '</a>
 					<object classid="clsid:02BF25D5-8C17-4B23-BC80-D3488ABDDC6B" width="'.$w.'" height="'.$h.'" codebase="http://www.apple.com/qtactivex/qtplugin.cab">
 					<param name="src" value="' . pathurlencode($this->getFullImage()) . '"/>
@@ -298,6 +317,79 @@ class Video extends _Image {
 					</object><a>';
 				break;
 		}
+	}
+
+	/**
+	 *
+	 * "video" metadata support function
+	 */
+	private function getMetaDataID3() {
+		$suffix = getSuffix($this->localpath);
+		if(in_array($suffix,array('m4a','m4v','mp3','mp4','flv','fla','mov','3gp'))) {
+			$getID3 = new getID3;
+			set_time_limit(30);
+			$ThisFileInfo = $getID3->analyze($this->localpath);
+			getid3_lib::CopyTagsToComments($ThisFileInfo);
+			// output desired information in whatever format you want
+			if(is_array($ThisFileInfo)) {
+				return $ThisFileInfo;
+			} else {
+				return NULL; // don't try to cover other files even if getid3 reads images as well
+			}
+		}
+	}
+
+
+	/**
+	 * Processes multi-media file metadata
+	 * (non-PHPdoc)
+	 * @see zp-core/_Image::updateMetaData()
+	 */
+	function updateMetaData() {
+		global $_zp_exifvars;
+		if (!ini_get('safe_mode')) {
+			$ThisFileInfo = $this->getMetaDataID3();
+			if(is_array($ThisFileInfo)) {
+				foreach ($ThisFileInfo as $key=>$info) {
+					if (is_array($info)) {
+						switch ($key) {
+							case 'comments':
+								foreach ($info as $key1=>$data) {
+									$ThisFileInfo[$key1] = array_shift($data);
+								}
+								break;
+							case 'audio':
+							case 'video':
+								foreach ($info as $key1=>$data) {
+									$ThisFileInfo[$key1] = $data;
+								}
+								break;
+							default:
+								//discard, not used
+								break;
+						}
+						unset($ThisFileInfo[$key]);
+					}
+				}
+				foreach ($_zp_exifvars as $field=>$exifvar) {
+					if (strpos($exifvar[0], 'VIDEO') !== false) {
+						if ($exifvar[0] == 'VIDEO') {
+							if (isset($ThisFileInfo[$exifvar[1]])) {
+								$data = $ThisFileInfo[$exifvar[1]];
+								if (!empty($data)) {
+									$this->set($field, $data);
+								}
+							}
+						}
+					}
+				}
+				$title = $this->get('VideoTitle');
+				if(!empty($title)) {
+					$this->setTitle($title);
+				}
+			}
+		}
+		parent::updateMetaData();
 	}
 }
 ?>

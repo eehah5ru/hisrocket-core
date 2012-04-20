@@ -57,9 +57,8 @@ border-bottom-color:#716f64;
 
 }
 label.labelModeActive{
-color: #A1040B;
+color:red;
 }
-
 .imageInput{width:35px;}
 #controls
 {

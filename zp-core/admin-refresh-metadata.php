@@ -8,7 +8,6 @@
 // force UTF-8 Ø
 
 define('OFFSET_PATH', 1);
-require_once(dirname(__FILE__).'/admin-functions.php');
 require_once(dirname(__FILE__).'/admin-globals.php');
 require_once(dirname(__FILE__).'/template-functions.php');
 
@@ -182,7 +181,7 @@ if (isset($_GET['refresh']) && db_connect()) {
 	}
 } else {
 	echo "<h3>".gettext("database not connected")."</h3>";
-	echo "<p>".gettext("Check the zp-config.php file to make sure you've got the right username, password, host, and database. If you haven't created the database yet, now would be a good time.");
+	echo "<p>".gettext("Check your configuration file to make sure you've got the right username, password, host, and database. If you haven't created the database yet, now would be a good time.");
 }
 
 echo "\n" . '</div>';

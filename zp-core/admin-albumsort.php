@@ -8,7 +8,6 @@
 // force UTF-8 Ø
 
 define('OFFSET_PATH', 1);
-require_once(dirname(__FILE__).'/admin-functions.php');
 require_once(dirname(__FILE__).'/admin-globals.php');
 
 if (isset($_REQUEST['album'])) {
@@ -36,7 +35,7 @@ if (isset($_GET['album'])) {
 		if (isset($inputArray['id'])) {
 			$orderArray = $inputArray['id'];
 			foreach($orderArray as $key=>$id) {
-				$sql = 'UPDATE '.prefix('images').' SET `sort_order`="'.sprintf('%03u',$key).'" WHERE `id`='.$id;
+				$sql = 'UPDATE '.prefix('images').' SET `sort_order`='.db_quote(sprintf('%03u',$key)).' WHERE `id`='.sanitize_numeric($id);
 				query($sql);
 			}
 
@@ -53,7 +52,7 @@ setAlbumSubtabs($album);
 printAdminHeader('edit','sort');
 
 ?>
-<script language="javascript" type="text/javascript">
+<script type="text/javascript">
 	//<!-- <![CDATA[
 	$(function() {
 		$('#images').sortable();
@@ -114,7 +113,7 @@ if (!isset($_GET['album'])) {
 			<?php zp_apply_filter('admin_note','albums', $subtab); ?>
 			<form action="?page=edit&amp;album=<?php echo $album->getFolder(); ?>&amp;saved&amp;tab=sort" method="post" name="sortableListForm" id="sortableListForm">
 				<?php XSRFToken('save_sort');?>
-				<script language="javascript" type="text/javascript">
+				<script type="text/javascript">
 					// <!-- <![CDATA[
 					function postSort(form) {
 						$('#sortableList').val($('#images').sortable('serialize'));

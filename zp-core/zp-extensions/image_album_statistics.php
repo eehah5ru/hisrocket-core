@@ -12,7 +12,7 @@
 
 $plugin_description = gettext("Functions that provide various statistics about images and albums in the gallery.");
 $plugin_author = "Malte Müller (acrylian), Stephen Billard (sbillard)";
-$plugin_version = '1.4.1';
+$plugin_version = '1.4.2';
 
 /**
  *
@@ -46,7 +46,7 @@ function getImageAlbumAlbumList($obj, &$albumlist) {
  */
 function getAlbumStatistic($number=5, $option, $albumfolder='') {
 	global $_zp_gallery;
-	if(!isset($_zp_gallery)) { // needed for gallery stats as $_zp_gallery is not set...
+	if(!isset($_zp_gallery)) {
 		$_zp_gallery = new Gallery();
 	}
 	$albumlist = array();
@@ -60,7 +60,7 @@ function getAlbumStatistic($number=5, $option, $albumfolder='') {
 	$albumWhere = '';
 	if(!empty($albumlist)) {
 		$albumWhere = ' WHERE (`id`='.implode(' OR `id`=', $albumlist).')';
-	} 
+	}
 	switch($option) {
 		case "popular":
 			$sortorder = "hitcounter";
@@ -103,7 +103,7 @@ function getAlbumStatistic($number=5, $option, $albumfolder='') {
  * @param integer $height the height/cropheight of the thumb if crop=true else not used.  (Default 85px)
  * @param bool $crop 'true' (default) if the thumb should be cropped, 'false' if not
  */
-function printAlbumStatistic($number, $option, $showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=85,$height=85,$crop=true,$albumfolder='',$firstimglink=false) {
+function printAlbumStatistic($number, $option, $showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=NULL,$height=NULL,$crop=NULL,$albumfolder='',$firstimglink=false) {
 	$albums = getAlbumStatistic($number, $option,$albumfolder);
 	echo "\n<div id=\"".$option."_album\">\n";
 	echo "<ul>";
@@ -135,8 +135,21 @@ function printAlbumStatistic($number, $option, $showtitle=false, $showdate=false
  * @param bool $crop 'true' (default) if the thumb should be cropped, 'false' if not
  * @param bool $firstimglink 'false' (default) if the album thumb link should lead to the album page, 'true' if to the first image of theh album if the album itself has images
  */
-function printAlbumStatisticItem($album, $option, $showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=85,$height=85,$crop=true,$firstimglink=false) {
+function printAlbumStatisticItem($album, $option, $showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=NULL,$height=NULL,$crop=NULL,$firstimglink=false) {
 	global $_zp_gallery;
+	$twidth = $width;
+	$theight = $height;
+	if (is_null($crop) && is_null($width) && is_null($height)) {
+		$crop = 2;
+	} else {
+		if (is_null($width)) $width = 85;
+		if (is_null($height)) $height = 85;
+		if (is_null($crop)) {
+			$crop = 1;
+		} else {
+			$crop = (int) $crop && true;
+		}
+	}
 	$tempalbum = new Album($_zp_gallery, $album['folder']);
 	if($firstimglink && $tempalbum->getNumImages() != 0) {
 		$firstimage = $tempalbum->getImages(1); // need only the first so don't get all
@@ -150,10 +163,16 @@ function printAlbumStatisticItem($album, $option, $showtitle=false, $showdate=fa
 	echo "<li><a href=\"".$albumpath."\" title=\"" . html_encode($tempalbum->getTitle()) . "\">\n";
 	$albumthumb = $tempalbum->getAlbumThumbImage();
 	$thumb = newImage($tempalbum, $albumthumb->filename);
-	if($crop) {
-		echo "<img src=\"".html_encode($albumthumb->getCustomImage(NULL, $width, $height, $width, $height, NULL, NULL, TRUE))."\" alt=\"" . html_encode($albumthumb->getTitle()) . "\" /></a>\n<br />";
-	} else {
-		echo "<img src=\"".html_encode($albumthumb->getCustomImage($width, NULL, NULL, NULL, NULL, NULL, NULL, TRUE))."\" alt=\"" . html_encode($albumthumb->getTitle()) . "\" /></a>\n<br />";
+	switch ($crop) {
+		case 0:
+			echo "<img src=\"".html_encode($albumthumb->getCustomImage($width, NULL, NULL, NULL, NULL, NULL, NULL, TRUE))."\" alt=\"" . html_encode($albumthumb->getTitle()) . "\" /></a>\n<br />";
+			break;
+		case 1;
+			echo "<img src=\"".html_encode($albumthumb->getCustomImage(NULL, $width, $height, $width, $height, NULL, NULL, TRUE))."\" alt=\"" . html_encode($albumthumb->getTitle()) . "\" /></a>\n<br />";
+			break;
+		case 2:
+			echo "<img src=\"".html_encode($albumthumb->getThumb())."\" alt=\"" . html_encode($albumthumb->getTitle()) . "\" /></a>\n<br />";
+			break;
 	}
 	if($showtitle) {
 		echo "<h3><a href=\"".$albumpath."\" title=\"" . html_encode($tempalbum->getTitle()) . "\">\n";
@@ -163,9 +182,7 @@ function printAlbumStatisticItem($album, $option, $showtitle=false, $showdate=fa
 		if($option === "latestupdated") {
 			$filechangedate = filectime(ALBUM_FOLDER_SERVERPATH.internalToFilesystem($tempalbum->name));
 			$latestimage = query_single_row("SELECT mtime FROM " . prefix('images'). " WHERE albumid = ".$tempalbum->getAlbumID() . " AND `show` = 1 ORDER BY id DESC");
-			$lastuploaded = query("SELECT COUNT(*) FROM ".prefix('images')." WHERE albumid = ".$tempalbum->getAlbumID() . " AND mtime = ". $latestimage['mtime']);
-			$row = db_fetch_row($lastuploaded);
-			$count = $row[0];
+			$count = db_count('images',"WHERE albumid = ".$tempalbum->getAlbumID() . " AND mtime = ". $latestimage['mtime']);
 			echo "<p>".sprintf(gettext("Last update: %s"),zpFormattedDate(DATE_FORMAT,$filechangedate))."</p>";
 			if($count <= 1) {
 				$image = gettext("image");
@@ -212,7 +229,7 @@ function printAlbumStatisticItem($album, $option, $showtitle=false, $showdate=fa
  * @param bool $crop 'true' (default) if the thumb should be cropped, 'false' if not
  * @param bool $firstimglink 'false' (default) if the album thumb link should lead to the album page, 'true' if to the first image of theh album if the album itself has images
  */
-function printPopularAlbums($number=5,$showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='hitcounter',$width=85,$height=85,$crop=true,$albumfolder='',$firstimglink=false) {
+function printPopularAlbums($number=5,$showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='hitcounter',$width=NULL,$height=NULL,$crop=NULL,$albumfolder='',$firstimglink=false) {
 	printAlbumStatistic($number,"popular",$showtitle, $showdate, $showdesc, $desclength,$showstatistic,$width,$height,$crop,$albumfolder,$firstimglink);
 }
 
@@ -232,7 +249,7 @@ function printPopularAlbums($number=5,$showtitle=false, $showdate=false, $showde
  * @param bool $crop 'true' (default) if the thumb should be cropped, 'false' if not
  * @param bool $firstimglink 'false' (default) if the album thumb link should lead to the album page, 'true' if to the first image of theh album if the album itself has images
  */
-function printLatestAlbums($number=5,$showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=85,$height=85,$crop=true,$albumfolder='',$firstimglink=false) {
+function printLatestAlbums($number=5,$showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=NULL,$height=NULL,$crop=NULL,$albumfolder='',$firstimglink=false) {
 	printAlbumStatistic($number,"latest",$showtitle, $showdate, $showdesc, $desclength,$showstatistic,$width,$height,$crop,$albumfolder,$firstimglink);
 }
 
@@ -252,7 +269,7 @@ function printLatestAlbums($number=5,$showtitle=false, $showdate=false, $showdes
  * @param bool $crop 'true' (default) if the thumb should be cropped, 'false' if not
  * @param bool $firstimglink 'false' (default) if the album thumb link should lead to the album page, 'true' if to the first image of theh album if the album itself has images
  */
-function printMostRatedAlbums($number=5,$showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=85,$height=85,$crop=true,$albumfolder='',$firstimglink=false) {
+function printMostRatedAlbums($number=5,$showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=NULL,$height=NULL,$crop=NULL,$albumfolder='',$firstimglink=false) {
 	printAlbumStatistic($number,"mostrated",$showtitle, $showdate, $showdesc, $desclength,$showstatistic,$width,$height,$crop,$albumfolder,$firstimglink);
 }
 
@@ -272,7 +289,7 @@ function printMostRatedAlbums($number=5,$showtitle=false, $showdate=false, $show
  * @param bool $crop 'true' (default) if the thumb should be cropped, 'false' if not
  * @param bool $firstimglink 'false' (default) if the album thumb link should lead to the album page, 'true' if to the first image of theh album if the album itself has images
  */
-function printTopRatedAlbums($number=5,$showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=85,$height=85,$crop=true,$albumfolder='',$firstimglink=false) {
+function printTopRatedAlbums($number=5,$showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=NULL,$height=NULL,$crop=NULL,$albumfolder='',$firstimglink=false) {
 	printAlbumStatistic($number,"toprated",$showtitle, $showdate, $showdesc, $desclength,$showstatistic,$width,$height,$crop,$albumfolder,$firstimglink);
 }
 
@@ -292,7 +309,7 @@ function printTopRatedAlbums($number=5,$showtitle=false, $showdate=false, $showd
  * @param bool $crop 'true' (default) if the thumb should be cropped, 'false' if not
  * @param bool $firstimglink 'false' (default) if the album thumb link should lead to the album page, 'true' if to the first image of theh album if the album itself has images
  */
-function printLatestUpdatedAlbums($number=5,$showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=85,$height=85,$crop=true,$albumfolder='',$firstimglink=false) {
+function printLatestUpdatedAlbums($number=5,$showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=NULL,$height=NULL,$crop=NULL,$albumfolder='',$firstimglink=false) {
 	printAlbumStatistic($number,"latestupdated",$showtitle, $showdate, $showdesc, $desclength,$showstatistic,$width,$height,$crop,$albumfolder,$firstimglink);
 }
 
@@ -362,7 +379,7 @@ function getImageStatistic($number, $option, $albumfolder='',$collection=false) 
 															" ORDER BY ".$sortorder." DESC");
 		while ($row = db_fetch_assoc($result)) {
 			$image = newImage(NULL, $row);
-			if ($image->checkAccess($hint, $show)) {
+			if ($image && $image->checkAccess($hint, $show)) {
 				$imageArray[] = $image;
 				if (count($imageArray) >= $number) {	// got enough
 					break;
@@ -396,19 +413,41 @@ function getImageStatistic($number, $option, $albumfolder='',$collection=false) 
  * @param integer $height the height/cropheight of the thumb if crop=true else not used.  (Default 85px)
  * @param bool $crop 'true' (default) if the thumb should be cropped, 'false' if not
  * @param bool $collection only if $albumfolder is set: true if you want to get statistics from this album and all of its subalbums
- *
+ * @param bool $fullimagelink 'false' (default) for the image page link , 'true' for the unprotected full image link (to use Colorbox for example)
  * @return string
  */
-function printImageStatistic($number, $option, $albumfolder='', $showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=85,$height=85,$crop=true,$collection=false) {
+function printImageStatistic($number, $option, $albumfolder='', $showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=NULL,$height=NULL,$crop=NULL,$collection=false,$fullimagelink=false) {
 	$images = getImageStatistic($number, $option, $albumfolder,$collection);
+	if (is_null($crop) && is_null($width) && is_null($height)) {
+		$crop = 2;
+	} else {
+		if (is_null($width)) $width = 85;
+		if (is_null($height)) $height = 85;
+		if (is_null($crop)) {
+			$crop = 1;
+		} else {
+			$crop = (int) $crop && true;
+		}
+	}
 	echo "\n<div id=\"$option\">\n";
 	echo "<ul>";
 	foreach ($images as $image) {
-		echo "<li><a href=\"" . html_encode($image->getImageLink())."\" title=\"" . html_encode($image->getTitle()) . "\">\n";
-		if($crop) {
-			echo "<img src=\"".html_encode($image->getCustomImage(NULL, $width, $height, $width, $height, NULL, NULL, TRUE))."\" alt=\"" . html_encode($image->getTitle()) . "\" /></a>\n";
+		if($fullimagelink) {
+			$imagelink = $image->getFullImage();
 		} else {
-			echo "<img src=\"".html_encode($image->getCustomImage($width, NULL, NULL, NULL, NULL, NULL, NULL, TRUE))."\" alt=\"" . html_encode($image->getTitle()) . "\" /></a>\n";
+			$imagelink = $image->getImageLink();
+		}
+		echo "<li><a href=\"" . html_encode($imagelink)."\" title=\"" . html_encode($image->getTitle()) . "\">\n";
+		switch ($crop) {
+			case 0:
+				echo "<img src=\"".html_encode($image->getCustomImage($width, NULL, NULL, NULL, NULL, NULL, NULL, TRUE))."\" alt=\"" . html_encode($image->getTitle()) . "\" /></a>\n";
+				break;
+			case 1:
+				echo "<img src=\"".html_encode($image->getCustomImage(NULL, $width, $height, $width, $height, NULL, NULL, TRUE))."\" alt=\"" . html_encode($image->getTitle()) . "\" /></a>\n";
+				break;
+			case 2:
+				echo "<img src=\"".html_encode($image->getThumb())."\" alt=\"" . html_encode($image->getTitle()) . "\" /></a>\n<br />";
+				break;
 		}
 		if($showtitle) {
 			echo "<h3><a href=\"".html_encode($image->getImageLink())."\" title=\"" . html_encode($image->getTitle()) . "\">\n";
@@ -454,9 +493,10 @@ function printImageStatistic($number, $option, $albumfolder='', $showtitle=false
  * @param integer $height the height/cropheight of the thumb if crop=true else not used.  (Default 85px)
  * @param bool $crop 'true' (default) if the thumb should be cropped, 'false' if not
  * @param bool $collection only if $albumfolder is set: true if you want to get statistics from this album and all of its subalbums
+ * @param bool $fullimagelink 'false' (default) for the image page link , 'true' for the unprotected full image link (to use Colorbox for example)
  */
-function printPopularImages($number=5, $albumfolder='', $showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=85,$height=85,$crop=true,$collection=false) {
-	printImageStatistic($number, "popular",$albumfolder, $showtitle, $showdate, $showdesc, $desclength,$showstatistic,$width,$height,$crop,$collection);
+function printPopularImages($number=5, $albumfolder='', $showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=NULL,$height=NULL,$crop=NULL,$collection=false,$fullimagelink=false) {
+	printImageStatistic($number, "popular",$albumfolder, $showtitle, $showdate, $showdesc, $desclength,$showstatistic,$width,$height,$crop,$collection,$fullimagelink);
 }
 
 /**
@@ -475,9 +515,10 @@ function printPopularImages($number=5, $albumfolder='', $showtitle=false, $showd
  * @param integer $height the height/cropheight of the thumb if crop=true else not used.  (Default 85px)
  * @param bool $crop 'true' (default) if the thumb should be cropped, 'false' if not
  * @param bool $collection only if $albumfolder is set: true if you want to get statistics from this album and all of its subalbums
+ * @param bool $fullimagelink 'false' (default) for the image page link , 'true' for the unprotected full image link (to use Colorbox for example)
  */
-function printTopRatedImages($number=5, $albumfolder="", $showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=85,$height=85,$crop=true,$collection=false) {
-	printImageStatistic($number, "toprated",$albumfolder, $showtitle, $showdate, $showdesc, $desclength,$showstatistic,$width,$height,$crop,$collection);
+function printTopRatedImages($number=5, $albumfolder="", $showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=NULL,$height=NULL,$crop=NULL,$collection=false,$fullimagelink=false) {
+	printImageStatistic($number, "toprated",$albumfolder, $showtitle, $showdate, $showdesc, $desclength,$showstatistic,$width,$height,$crop,$collection,$fullimagelink);
 }
 
 
@@ -497,9 +538,10 @@ function printTopRatedImages($number=5, $albumfolder="", $showtitle=false, $show
  * @param integer $height the height/cropheight of the thumb if crop=true else not used.  (Default 85px)
  * @param bool $crop 'true' (default) if the thumb should be cropped, 'false' if not
  * @param bool $collection only if $albumfolder is set: true if you want to get statistics from this album and all of its subalbums
+ * @param bool $fullimagelink 'false' (default) for the image page link , 'true' for the unprotected full image link (to use Colorbox for example)
  */
-function printMostRatedImages($number=5, $albumfolder='', $showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=85,$height=85,$crop=true,$collection=false) {
-	printImageStatistic($number, "mostrated", $albumfolder, $showtitle, $showdate, $showdesc, $desclength, $showstatistic,$width,$height,$crop,$collection);
+function printMostRatedImages($number=5, $albumfolder='', $showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=NULL,$height=NULL,$crop=NULL,$collection=false,$fullimagelink=false) {
+	printImageStatistic($number, "mostrated", $albumfolder, $showtitle, $showdate, $showdesc, $desclength, $showstatistic,$width,$height,$crop,$collection,$fullimagelink);
 }
 
 /**
@@ -518,9 +560,10 @@ function printMostRatedImages($number=5, $albumfolder='', $showtitle=false, $sho
  * @param integer $height the height/cropheight of the thumb if crop=true else not used.  (Default 85px)
  * @param bool $crop 'true' (default) if the thumb should be cropped, 'false' if not
  * @param bool $collection only if $albumfolder is set: true if you want to get statistics from this album and all of its subalbums
+ * @param bool $fullimagelink 'false' (default) for the image page link , 'true' for the unprotected full image link (to use Colorbox for example)
  */
-function printLatestImages($number=5, $albumfolder='', $showtitle=false, $showdate=false, $showdesc=false, $desclength=40, $showstatistic='',$width=85,$height=85,$crop=true,$collection=false) {
-	printImageStatistic($number, "latest", $albumfolder, $showtitle, $showdate, $showdesc, $desclength, $showstatistic,$width,$height,$crop,$collection);
+function printLatestImages($number=5, $albumfolder='', $showtitle=false, $showdate=false, $showdesc=false, $desclength=40, $showstatistic='',$width=NULL,$height=NULL,$crop=NULL,$collection=false,$fullimagelink=false) {
+	printImageStatistic($number, "latest", $albumfolder, $showtitle, $showdate, $showdesc, $desclength, $showstatistic,$width,$height,$crop,$collection,$fullimagelink);
 }
 
 /**
@@ -539,9 +582,10 @@ function printLatestImages($number=5, $albumfolder='', $showtitle=false, $showda
  * @param integer $height the height/cropheight of the thumb if crop=true else not used.  (Default 85px)
  * @param bool $crop 'true' (default) if the thumb should be cropped, 'false' if not
  * @param bool $collection only if $albumfolder is set: true if you want to get statistics from this album and all of its subalbums
+ * @param bool $fullimagelink 'false' (default) for the image page link , 'true' for the unprotected full image link (to use Colorbox for example)
  */
-function printLatestImagesByDate($number=5, $albumfolder='', $showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=85,$height=85,$crop=true,$collection=false) {
-	printImageStatistic($number, "latest-date", $albumfolder, $showtitle, $showdate, $showdesc, $desclength,$showstatistic,$width,$height,$crop,$collection);
+function printLatestImagesByDate($number=5, $albumfolder='', $showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=NULL,$height=NULL,$crop=NULL,$collection=false,$fullimagelink=false) {
+	printImageStatistic($number, "latest-date", $albumfolder, $showtitle, $showdate, $showdesc, $desclength,$showstatistic,$width,$height,$crop,$collection,$fullimagelink);
 }
 
 /**
@@ -560,9 +604,10 @@ function printLatestImagesByDate($number=5, $albumfolder='', $showtitle=false, $
  * @param integer $height the height/cropheight of the thumb if crop=true else not used.  (Default 85px)
  * @param bool $crop 'true' (default) if the thumb should be cropped, 'false' if not
  * @param bool $collection only if $albumfolder is set: true if you want to get statistics from this album and all of its subalbums
+ * @param bool $fullimagelink 'false' (default) for the image page link , 'true' for the unprotected full image link (to use Colorbox for example)
  */
-function printLatestImagesByMtime($number=5, $albumfolder='', $showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=85,$height=85,$crop=true,$collection=false) {
-	printImageStatistic($number, "latest-mtime", $albumfolder, $showtitle, $showdate, $showdesc, $desclength,$showstatistic,$width,$height,$crop,$collection);
+function printLatestImagesByMtime($number=5, $albumfolder='', $showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=NULL,$height=NULL,$crop=NULL,$collection=false,$fullimagelink=false) {
+	printImageStatistic($number, "latest-mtime", $albumfolder, $showtitle, $showdate, $showdesc, $desclength,$showstatistic,$width,$height,$crop,$collection,$fullimagelink);
 }
 
 

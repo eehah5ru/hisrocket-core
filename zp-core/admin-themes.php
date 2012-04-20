@@ -7,7 +7,6 @@
 // force UTF-8 Ø
 
 define('OFFSET_PATH', 1);
-require_once(dirname(__FILE__).'/admin-functions.php');
 require_once(dirname(__FILE__).'/admin-globals.php');
 
 admin_securityChecks(THEMES_RIGHTS, currentRelativeURL(__FILE__));
@@ -66,12 +65,13 @@ printAdminHeader('themes');
 // Script for the "Duplicate theme" feature
 ?>
 
+<script type="text/javascript" src="<?php echo WEBPATH.'/'.ZENFOLDER;?>/js/sprintf.js"></script>
 <script type="text/javascript">
 	//<!-- <![CDATA[
 	function copyClick(source) {
-		var targetname = prompt('<?php echo gettext('New theme name? (e.g. "My Theme")'); ?>', '<?php echo gettext('My Theme'); ?>');
+		var targetname = prompt('<?php echo gettext('New theme name?'); ?>', sprintf('<?php echo gettext('Copy of %s');?>',source));
 		if (targetname) {
-			var targetdir = prompt('<?php echo gettext('New directory name? (e.g. "my_theme")'); ?>', targetname.toLowerCase().replace(/ /g,'_').replace(/[^A-Za-z0-9_]/g,'') );
+			var targetdir = prompt('<?php echo gettext('Theme folder name?'); ?>', targetname.toLowerCase().replace(/ /g,'_').replace(/[^A-Za-z0-9_]/g,'') );
 			if (targetdir) {
 				launchScript('',['action=copytheme','XSRFToken=<?php echo getXSRFToken('admin-themes')?>','source='+encodeURIComponent(source),'target='+encodeURIComponent(targetdir),'name='+encodeURIComponent(targetname)]);
 				return false;
@@ -194,17 +194,40 @@ foreach($themes as $theme => $themeinfo) {
 	$style = ($theme == $current_theme) ? " style=\"$current_theme_style\"" : "";
 	$themedir = SERVERPATH . '/themes/'.internalToFilesystem($theme);
 	$themeweb = WEBPATH . "/themes/$theme";
+	if (themeIsEditable($theme, $themes)) {
+		$whose = gettext('third party theme');
+		$path = $themedir.'/logo.png';
+		if (file_exists($path)) {
+			$ico = $themeweb.'/logo.png';
+		} else {
+			$ico = 'images/place_holder_icon.png';
+		}
+	} else {
+		$whose = 'Zenphoto official theme';
+		$ico = 'images/zp_gold.png';
+	}
 	?>
 	<tr>
-		<td style="margin: 0px; padding: 0px;"><?php
-			if (file_exists("$themedir/theme.png")) $themeimage = "$themeweb/theme.png";
-			else if (file_exists("$themedir/theme.gif")) $themeimage = "$themeweb/theme.gif";
-			else if (file_exists("$themedir/theme.jpg")) $themeimage = "$themeweb/theme.jpg";
-			else $themeimage = false;
-			if ($themeimage) { ?> <img height="150" width="150"
-				src="<?php echo $themeimage; ?>" alt="Theme Screenshot" /> <?php } ?>
+		<td style="margin: 0px; padding: 0px;">
+		<?php
+			if (file_exists("$themedir/theme.png")) {
+				$themeimage = "$themeweb/theme.png";
+			}	else if (file_exists("$themedir/theme.gif")) {
+				$themeimage = "$themeweb/theme.gif";
+			} else if (file_exists("$themedir/theme.jpg")) {
+				$themeimage = "$themeweb/theme.jpg";
+			} else {
+				$themeimage = false;
+			}
+			if ($themeimage) {
+				?>
+				<img height="150" width="150" src="<?php echo $themeimage; ?>" alt="Theme Screenshot" />
+				<?php
+			}
+			?>
 		</td>
 		<td <?php echo $style; ?>>
+			<img class="zp_logoicon" src="<?php echo $ico; ?>" alt="" />
 			<strong><?php echo $themeinfo['name']; ?></strong>
 			<br />
 			<?php echo $themeinfo['author']; ?>

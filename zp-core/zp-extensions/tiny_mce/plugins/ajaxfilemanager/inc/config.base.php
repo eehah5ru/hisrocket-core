@@ -1,4 +1,10 @@
 <?php
+	if(!defined('AJAX_INIT_DONE'))
+	{
+		die('Permission denied');
+	}
+?>
+<?php
 	/**
 	 * sysem base config setting
 	 * @author Logan Cai (cailongqun [at] yahoo [dot] com [dot] cn)
@@ -6,7 +12,6 @@
 	 * @since 1/August/2007
 	 *
 	 */
-
 
 error_reporting(E_ALL);
 //error_reporting(E_ALL ^ E_NOTICE);
@@ -18,10 +23,10 @@ error_reporting(E_ALL);
 	 * turn off => false
 	 * by session => true
 	 */
-	define('CONFIG_ACCESS_CONTROL_MODE', false);
+	define('CONFIG_ACCESS_CONTROL_MODE', true);
 	define("CONFIG_LOGIN_USERNAME", 'ajax');
 	define('CONFIG_LOGIN_PASSWORD', '123456');
-	define('CONFIG_LOGIN_PAGE', 'ajax_login.php'); //the url to the login page
+	define('CONFIG_LOGIN_PAGE', '../../../../admin.php'); //the url to the login page
 
 	//SYSTEM MODE CONFIG
 		/**
@@ -34,13 +39,15 @@ error_reporting(E_ALL);
 	define('CONFIG_SYS_THUMBNAIL_VIEW_ENABLE', true);//REMOVE THE thumbnail view if false
 
 	//User Permissions
-	define('CONFIG_OPTIONS_DELETE', true);
-	define('CONFIG_OPTIONS_CUT', true);
-	define('CONFIG_OPTIONS_COPY', true);
-	define('CONFIG_OPTIONS_NEWFOLDER', true);
-	define('CONFIG_OPTIONS_RENAME', true);
-	define('CONFIG_OPTIONS_UPLOAD', true); //
-	define('CONFIG_OPTIONS_EDITABLE', true); //disable image editor and text editor
+	$fullaccess = zp_loggedin(FILES_RIGHTS);
+	define('CONFIG_OPTIONS_DELETE', $fullaccess); //disable to delete folder
+	define('CONFIG_OPTIONS_CUT', $fullaccess);	//disalbe to cut a file/folder
+	define('CONFIG_OPTIONS_COPY', $fullaccess);	//disable to copy a file/folder
+	define('CONFIG_OPTIONS_NEWFOLDER', $fullaccess); //disable to create new folder
+	define('CONFIG_OPTIONS_RENAME', $fullaccess); //disable to rename the file/folder
+	define('CONFIG_OPTIONS_UPLOAD', $fullaccess); //disable to upload the file
+	define('CONFIG_OPTIONS_EDITABLE', false); //disable image editor and text editor
+	define('CONFIG_OPTIONS_SEARCH', true); //disable to search documents
 	//FILESYSTEM CONFIG
 		/*
 		* CONFIG_SYS_DEFAULT_PATH is the default folder where the files would be uploaded to
@@ -51,7 +58,7 @@ error_reporting(E_ALL);
 	define('CONFIG_SYS_DEFAULT_PATH', '../../../../../uploaded/'); //accept relative path only
 	define('CONFIG_SYS_ROOT_PATH', '../../../../../uploaded/');	//accept relative path only
 	define('CONFIG_SYS_FOLDER_SHOWN_ON_TOP', true); //show your folders on the top of list if true or order by name
-	define("CONFIG_SYS_DIR_SESSION_PATH", 'session/');
+	define("CONFIG_SYS_DIR_SESSION_PATH", '../../../../../'.DATA_FOLDER.'/ajaxfilemanager/');
 	define("CONFIG_SYS_PATTERN_FORMAT", 'list'); //three options: reg ,csv, list, this option define the parttern format for the following patterns
 		/**
 		 * reg => regulare expression
@@ -129,7 +136,7 @@ error_reporting(E_ALL);
 					fckeditor
 			*/
 	//CONFIG_EDITOR_NAME replaced CONFIG_THEME_MODE since @version 0.8
-	define('CONFIG_EDITOR_NAME', (CONFIG_QUERY_STRING_ENABLE && !empty($_GET['editor'])?secureFileName($_GET['editor']):'stand_alone'));
+	define('CONFIG_EDITOR_NAME', (CONFIG_QUERY_STRING_ENABLE && !empty($_GET['editor'])?secureFileName($_GET['editor']):'tinymce'));
 	define('CONFIG_THEME_NAME', (CONFIG_QUERY_STRING_ENABLE && !empty($_GET['theme'])?secureFileName($_GET['theme']):'default'));  //change the theme to your custom theme rather than default
 	define('CONFIG_DEFAULT_VIEW', (CONFIG_SYS_THUMBNAIL_VIEW_ENABLE?'detail':'detail')); //thumnail or detail
 	define('CONFIG_DEFAULT_PAGINATION_LIMIT', 10);
@@ -137,6 +144,7 @@ error_reporting(E_ALL);
 
 	//General Option Declarations
 	//LANGAUGAE DECLARATIONNS
+
 	define('CONFIG_LANG_INDEX', 'language'); //the index in the session
 	define('CONFIG_LANG_DEFAULT', (CONFIG_QUERY_STRING_ENABLE && !empty($_GET['language']) && file_exists(DIR_LANG . secureFileName($_GET['language']) . '.php')?secureFileName($_GET['language']):'en')); //change it to be your language file base name, such en
 ?>

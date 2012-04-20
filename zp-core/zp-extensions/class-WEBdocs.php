@@ -12,7 +12,7 @@
 $plugin_is_filter = 9|CLASS_PLUGIN;
 $plugin_description = gettext('Provides a means for showing .pdf, .pps documents using WEBdocs for the document rendering');
 $plugin_author = "Stephen Billard (sbillard)";
-$plugin_version = '1.4.1';
+$plugin_version = '1.4.2';
 
 $option_interface = 'WEBdocs_Options';
 
@@ -88,7 +88,7 @@ class WEBdocs extends TextObject {
 	 * @param string $filename the filename of the text file
 	 * @return TextObject
 	 */
-	function WEBdocs($album, $filename) {
+	function __construct($album, $filename) {
 
 		$this->watermark = getOption('WEBdocs_watermark');
 		$this->watermarkDefault = getOption('WEBdocs_watermark_default_images');

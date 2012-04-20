@@ -1,13 +1,38 @@
 <script language="javascript" type="text/javascript">
 /* tinyMCEPopup.requireLangPack(); */
 
+function stripHTML(oldString) {
+
+   var newString = "";
+   var inTag = false;
+   for(var i = 0; i < oldString.length; i++) {
+
+        if(oldString.charAt(i) == '<') inTag = true;
+        if(oldString.charAt(i) == '>') {
+              if(oldString.charAt(i+1)=="<")
+              {
+              		//dont do anything
+	}
+	else
+	{
+		inTag = false;
+		i++;
+	}
+        }
+
+        if(!inTag) newString += oldString.charAt(i);
+
+   }
+
+   return newString;
+}
+
 var ZenpageDialog = {
 	init : function(ed) {
 		tinyMCEPopup.resizeToInnerSize();
 	},
 
 	insert : function(imgurl,imgname,imgtitle,albumtitle,fullimage,type, wm_thumb, wm_img,video,imgdesc,albumdesc) {
-
 		var ed = tinyMCEPopup.editor, dom = ed.dom;
 		var imglink = '';
 		var includetype = '';
@@ -26,6 +51,13 @@ var ZenpageDialog = {
 		var webpath = '<?php echo WEBPATH; ?>'
 		var modrewrite = '<?php echo MOD_REWRITE; ?>';
 		var modrewritesuffix = '<?php echo getOption("mod_rewrite_image_suffix"); ?>';
+		var plainimgtitle = imgtitle.replace(/'|\\'/g, "\\'");
+		var plainalbumtitle = albumtitle.replace(/'|\\'/g, "\\'");
+
+
+		plainimgtitle = stripHTML(plainimgtitle);
+		plainalbumtitle = stripHTML(plainalbumtitle);
+
 		<?php
 		chdir(SERVERPATH.'/'.ZENFOLDER.'/'.PLUGIN_FOLDER.'/flowplayer3');
 		$filelist = safe_glob('flowplayer-*.swf');
@@ -103,21 +135,21 @@ var ZenpageDialog = {
 		// getting the link type checkbox values
 		if($('#imagelink:checked').val() == 1) {
 			if(modrewrite == '1') {
-				linkpart1 = '<a href=\''+webpath+'/'+albumname+'/'+imgname+modrewritesuffix+'\' title=\''+imgtitle+'\' class=\'zenpage_imagelink\'>';
+				linkpart1 = '<a href=\''+webpath+'/'+albumname+'/'+imgname+modrewritesuffix+'\' title=\''+plainimgtitle+'\' class=\'zenpage_imagelink\'>';
 			} else {
-				linkpart1 = '<a href=\''+webpath+'/index.php?album='+albumname+'&amp;image='+imgname+'\' title=\''+imgtitle+'\' class=\'zenpage_imagelink\'>';
+				linkpart1 = '<a href=\''+webpath+'/index.php?album='+albumname+'&amp;image='+imgname+'\' title=\''+plainimgtitle+'\' class=\'zenpage_imagelink\'>';
 			}
 			linkpart2 = '</a>';
 		}
 		if($('#fullimagelink:checked').val() == 1) {
-				linkpart1 = '<a href=\''+fullimage+'\' title=\''+imgtitle+'\' class=\'zenpage_fullimagelink\'>';
+				linkpart1 = '<a href=\''+fullimage+'\' title=\''+plainimgtitle+'\' class=\'zenpage_fullimagelink\' rel=\'colorbox\'>';
 				linkpart2 = '</a>';
 		}
 		if($('#albumlink:checked').val() == 1) {
 			if(modrewrite == '1') {
-				linkpart1 = '<a href=\''+webpath+'/'+albumname+'\' title=\''+albumtitle+'\' class=\'zenpage_albumlink\'>';
+				linkpart1 = '<a href=\''+webpath+'/'+albumname+'\' title=\''+plainalbumtitle+'\' class=\'zenpage_albumlink\'>';
 			} else {
-				linkpart1 = '<a href=\''+webpath+'/index.php?album='+albumname+'\' title=\''+albumtitle+'\' class=\'zenpage_albumlink\'>';
+				linkpart1 = '<a href=\''+webpath+'/index.php?album='+albumname+'\' title=\''+plainalbumtitle+'\' class=\'zenpage_albumlink\'>';
 			}
 			linkpart2 = '</a>';
 		}
@@ -144,7 +176,7 @@ var ZenpageDialog = {
 			}
 			if($('#albumdesc:checked').val() == 1) {
 				descwrap = '<div class=\'zenpage_desc\'>'+albumdesc+'</div>';
-	  	}
+			}
 			infowrap2 = titlewrap+descwrap+infowrap2;
 		}
 		if($('#imagetitle:checked').val() == 1) {
@@ -159,7 +191,7 @@ var ZenpageDialog = {
 
 		// building the final item to include
 		if(type == "zenphoto") {
-			if((video == 'video' || video == 'mp3') && $('#sizedimage:checked').val() == 1) {
+			if((video == 'video' || video == 'audio') && $('#sizedimage:checked')) {
 				if(video == 'video') {
 					playerheight = "<?php echo getOption('tinymce_tinyzenpage_flowplayer_height'); ?>";
 				} else {
@@ -208,7 +240,7 @@ var ZenpageDialog = {
 				imglink += '}\' />';
 				imglink += '</object>';
 				imglink += infowrap2;
-			}	else if(video == 'textobject' && $('#sizedimage:checked').val() == 1) {
+			}	else if(video == 'textobject' && $('#sizedimage:checked')) {
 				imglink = infowrap1+fullimage+infowrap2;
 			} else {
 				imglink = infowrap1+linkpart1+includetype+linkpart2+infowrap2;
@@ -216,23 +248,23 @@ var ZenpageDialog = {
 		} else {
 			if(type == "pages") {
 				if(modrewrite == '1') {
-					imglink = '<a href=\''+webpath+'/'+imgurl+'\' title=\''+imgtitle+'\'>'+imgtitle+'</a>';
+					imglink = '<a href=\''+webpath+'/'+imgurl+'\' title=\''+plainimgtitle+'\'>'+imgtitle+'</a>';
 				} else {
-					imglink = '<a href=\''+webpath+'/index.php?p=pages&amp;title='+imgname+'\' title=\''+imgtitle+'\'>'+imgtitle+'</a>';
+					imglink = '<a href=\''+webpath+'/index.php?p=pages&amp;title='+imgname+'\' title=\''+plainimgtitle+'\'>'+imgtitle+'</a>';
 				}
 			}
 			if(type == "articles") {
 				if(modrewrite == '1') {
-					imglink = '<a href=\''+webpath+'/'+imgurl+'\' title=\''+imgtitle+'\'>'+imgtitle+'</a>';
+					imglink = '<a href=\''+webpath+'/'+imgurl+'\' title=\''+plainimgtitle+'\'>'+imgtitle+'</a>';
 				} else {
-					imglink = '<a href=\''+webpath+'/index.php?p=news&amp;title='+imgname+'\' title=\''+imgtitle+'\'>'+imgtitle+'</a>';
+					imglink = '<a href=\''+webpath+'/index.php?p=news&amp;title='+imgname+'\' title=\''+plainimgtitle+'\'>'+imgtitle+'</a>';
 				}
 			}
 			if(type == "categories") {
 				if(modrewrite == '1') {
-					imglink = '<a href=\''+webpath+'/'+imgurl+'\' title=\''+imgtitle+'\'>'+imgtitle+'</a>';
+					imglink = '<a href=\''+webpath+'/'+imgurl+'\' title=\''+plainimgtitle+'\'>'+imgtitle+'</a>';
 				} else {
-					imglink = '<a href=\''+webpath+'/index.php?p=news&amp;category='+imgname+'\' title=\''+imgtitle+'\'>'+imgtitle+'</a>';
+					imglink = '<a href=\''+webpath+'/index.php?p=news&amp;category='+imgname+'\' title=\''+plainimgtitle+'\'>'+imgtitle+'</a>';
 				}
 			}
 		}

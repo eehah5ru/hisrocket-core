@@ -34,22 +34,24 @@ $album8 = filesystemToInternal($album);
 $image8 = filesystemToInternal($image);
 $theme = themeSetup($album); // loads the theme based image options.
 
-/* Prevent hotlinking to the full image from other servers. */
-$server = $_SERVER['SERVER_NAME'];
-if (isset($_SERVER['HTTP_REFERER'])) $test = strpos($_SERVER['HTTP_REFERER'], $server); else $test = true;
-if ( $test == FALSE && getOption('hotlink_protection')) { /* It seems they are directly requesting the full image. */
-	$i = 'index.php?album='.$album8 . '&image=' . $image8;
-	header("Location: {$i}");
-	exit();
+/* Prevent hotlinking to the full image from other domains. */
+if (getOption('hotlink_protection') && isset($_SERVER['HTTP_REFERER'])) {
+	preg_match('|(.*)//([^/]*)|', $_SERVER['HTTP_REFERER'], $matches);
+	if (preg_replace('/^www\./', '', strtolower($_SERVER['SERVER_NAME'])) != preg_replace('/^www\./', '', strtolower($matches[2]))) {
+		/* It seems they are directly requesting the full image. */
+		header('Location: '.FULLWEBPATH.'\index.php?album='.$album8 . '&image=' . $image8);
+		exit();
+	}
 }
 
 $_zp_gallery = new Gallery();
 $albumobj = new Album($_zp_gallery, $album8);
-if (!$albumobj->checkAccess() && !zp_loggedin(VIEW_FULLIMAGE_RIGHTS)) {
+
+$hash = getOption('protected_image_password');
+if (($hash || !$albumobj->checkAccess()) && !zp_loggedin(VIEW_FULLIMAGE_RIGHTS)) {
 	//	handle password form if posted
 	zp_handle_password('zp_image_auth', getOption('protected_image_password'), getOption('protected_image_user'));
 	//check for passwords
-	$hash = getOption('protected_image_password');
 	$authType = 'zp_image_auth';
 	$hint = get_language_string(getOption('protected_image_hint'));
 	$show = getOption('protected_image_user');
@@ -78,7 +80,7 @@ if (!$albumobj->checkAccess() && !zp_loggedin(VIEW_FULLIMAGE_RIGHTS)) {
 		$hint = $_zp_gallery->getPasswordHint();;
 		$show = $_zp_gallery->getUser();
 	}
-	if ((empty($hash) && GALLERY_SECURITY == 'private') || (!empty($hash) && zp_getCookie($authType) != $hash)) {
+	if (empty($hash) || (!empty($hash) && zp_getCookie($authType) != $hash)) {
 		require_once(dirname(__FILE__) . "/template-functions.php");
 		$parms = '';
 		if (isset($_GET['wmk'])) {
@@ -94,8 +96,6 @@ if (!$albumobj->checkAccess() && !zp_loggedin(VIEW_FULLIMAGE_RIGHTS)) {
 		printPasswordForm($hint, true, $_zp_gallery->getUserLogonField() || $show, $action);
 		exit();
 	}
-	exit();
-
 }
 
 $image_path = ALBUM_FOLDER_SERVERPATH.$album.'/'.$image;
@@ -114,11 +114,13 @@ switch ($suffix) {
 		break;
 	default:
 		if ($disposal == 'Download') {
+			require_once(dirname(__FILE__).'/lib-MimeTypes.php');
+			$mimetype = getMimeString($suffix);
 			header('Content-Disposition: attachment; filename="' . $image . '"');  // enable this to make the image a download
-			$fp = fopen($cache_path, 'rb');
+			$fp = fopen($image_path, 'rb');
 			// send the right headers
 			header('Last-Modified: ' . gmdate('D, d M Y H:i:s').' GMT');
-			header('Content-Disposition: attachment; filename="' . $image . '"');  // enable this to make the image a download
+			header("Content-Type: $mimetype");
 			header("Content-Length: " . filesize($image_path));
 			// dump the picture and stop the script
 			fpassthru($fp);

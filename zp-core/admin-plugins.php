@@ -7,7 +7,6 @@
 // force UTF-8 Ø
 
 define('OFFSET_PATH', 1);
-require_once(dirname(__FILE__).'/admin-functions.php');
 require_once(dirname(__FILE__).'/admin-globals.php');
 
 admin_securityChecks(NULL, currentRelativeURL(__FILE__));
@@ -51,6 +50,20 @@ function toggleDetails(plugin) {
 	toggle(plugin+'_show');
 	toggle(plugin+'_hide');
 }
+
+function truncateDesc(text) {
+	text = text.replace(/(<script.*?script>)/ig,"");	//strip scripts
+	text = text.replace(/(<.*?>)/ig," ");							//strip tags
+	if (text.length <= 70) return text;
+	ls = 0;
+	for (i=0;i<text.length;i++) {
+		if (text[i] == ' ' && i>ls) ls = i;
+		if (i >= 69) break;
+	}
+	if (ls == 0) ls == i;
+	return text.substring(0,ls)+'...'
+}
+
 //-->
 </script>
 <?php
@@ -58,6 +71,9 @@ echo "\n</head>";
 echo "\n<body>";
 printLogoAndLinks();
 echo "\n" . '<div id="main">';
+$paths = getPluginFiles('*.php');
+$filelist = array_keys($paths);
+natcasesort($filelist);
 printTabs();
 echo "\n" . '<div id="content">';
 
@@ -69,9 +85,6 @@ if ($saved) {
 	echo '</div>';
 }
 
-$paths = getPluginFiles('*.php');
-$filelist = array_keys($paths);
-natcasesort($filelist);
 ?>
 <h1><?php echo gettext('Plugins'); ?></h1>
 <p>
@@ -91,20 +104,23 @@ echo gettext("If the plugin checkbox is checked, the plugin will be loaded and i
 <button type="submit" value="<?php echo gettext('Apply') ?>" title="<?php echo gettext("Apply"); ?>"><img src="images/pass.png" alt="" /><strong><?php echo gettext("Apply"); ?></strong></button>
 <button type="reset" value="<?php echo gettext('Reset') ?>" title="<?php echo gettext("Reset"); ?>"><img src="images/reset.png" alt="" /><strong><?php echo gettext("Reset"); ?></strong></button>
 </p><br clear="all" /><br /><br />
-<?php
-echo "<table class=\"bordered\" width=\"100%\">\n";
-?>
+<table class="bordered options">
 <tr>
 <th><?php echo gettext("Available Plugins"); ?></th>
 <th colspan="2">
-	<span class="pluginextrahide" style="display:none;">
-		<p class="buttons"><a href="javascript:toggleExtraInfo('','plugin',false);" title ="<?php echo gettext('hide all description details'); ?>" ><?php echo gettext('hide all'); ?></a></p>
-	</span>
-	<span class="pluginextrashow">
-		<p class="buttons"><a href="javascript:toggleExtraInfo('','plugin',true);" title ="<?php echo gettext('show all description details'); ?>" ><?php echo gettext('show all'); ?></a></p>
-	</span>
 	<?php echo gettext("Description"); ?>
 </th>
+<tr>
+	<td></td>
+	<td colspan="2">
+		<span class="pluginextrahide" style="display:none">
+		<p class="buttons"><a href="javascript:toggleExtraInfo('','plugin',false);" title ="<?php echo gettext('hide all description details'); ?>" ><?php echo gettext('hide all'); ?></a></p>
+	</span>
+	<span class="pluginextrashow" >
+		<p class="buttons"><a href="javascript:toggleExtraInfo('','plugin',true);" title ="<?php echo gettext('show all description details'); ?>" ><?php echo gettext('show all'); ?></a></p>
+	</span>
+	</td>
+</tr>
 </tr>
 <?php
 foreach ($filelist as $extension) {
@@ -119,6 +135,13 @@ foreach ($filelist as $extension) {
 		}
 	} else {
 		$plugin_description = '';
+	}
+	if ($str = isolate('$plugin_notice', $pluginStream)) {
+		if (false === eval($str)) {
+			$parserr = $parserr | 1;
+		}
+	} else {
+		$plugin_notice = '';
 	}
 	if ($str = isolate('$plugin_author', $pluginStream)) {
 		if (false === eval($str)) {
@@ -188,40 +211,60 @@ foreach ($filelist as $extension) {
 	?>
 	<tr>
 		<td width="30%">
-		<label>
-			<input type="checkbox" name="<?php echo $opt; ?>" value="<?php echo $plugin_is_filter; ?>"
+			<label id="<?php echo $extension; ?>_lbl">
 				<?php
+				if ($third_party_plugin) {
+					$path = stripSuffix($paths[$extension]).'/logo.png';
+					if (file_exists($path)) {
+						$ico = str_replace(SERVERPATH, WEBPATH, $path);
+					} else {
+						$ico = 'images/place_holder_icon.png';
+					}
+				} else {
+					$ico = 'images/zp_gold.png';
+				}
+				?>
+				<img class="zp_logoicon" src="<?php echo $ico; ?>" alt="" />
+				<span class="icons" id="<?php echo $extension;?>_checkbox">
+				<?php
+				$attributes = '';
 				if ($parserr || $plugin_disable) {
 					$optionlink = false;
-					echo ' disabled="disabled"';
+					$attributes .= ' disabled="disabled"';
 				} else {
 					if ($currentsetting > THEME_PLUGIN) {
-						echo ' checked="checked"';
+						$attributes .= ' checked="checked"';
 					}
-				} ?> />
-			<span<?php if (!$third_party_plugin) echo ' style="font-weight:bold"' ?>><?php echo $extension; ?></span>
-		</label>
-		<?php
+				}
+				?>
+				<input type="checkbox" name="<?php echo $opt; ?>" id="<?php echo $opt; ?>" value="<?php echo $plugin_is_filter; ?>"<?php echo $attributes; ?>	/>
+			</span>
+			<?php
+		echo $extension;
 		if (!empty($plugin_version)) {
 			echo ' v'.$plugin_version;
 		}
 		if ($plugin_disable) {
-			echo '<p><strong>'.sprintf(gettext('This plugin is disabled: %s'),$plugin_disable).'</strong></p>';
+			?>
+			<br />
+			<a href="javascript:toggleDetails('<?php echo $extension;?>');">
+				<?php printf(gettext('This plugin is disabled: %s'),''); ?>
+			</a>
+			<?php
 		}
 		?>
-		</td>
-		<td class="icons">
-			<a href="javascript:toggleDetails('<?php echo $extension;?>');" title ="<?php echo gettext('toggle description details'); ?>" ><img src="images/info_toggle.png" alt="" /></a>
+		</label>
 		</td>
 		<td>
-		<span id="<?php echo $extension; ?>_show" class="pluginextrashow">
-			<?php
-			echo truncate_string(strip_tags($plugin_description), 70);
-			?>
-		</span>
+			<span class="icons"><a href="javascript:toggleDetails('<?php echo $extension;?>');" title ="<?php echo gettext('toggle description details'); ?>" ><img src="images/info_toggle.png" alt="" /></a></span>
+		</td>
+		<td>
+		<span id="<?php echo $extension; ?>_show" class="pluginextrashow"></span>
 		<span id="<?php echo $extension; ?>_hide" style="display: none;" class="pluginextrahide">
+			<span id="<?php echo $extension; ?>_desc"><?php echo $plugin_description; ?></span>
+			<script type="text/javascript">$('#<?php echo $extension; ?>_show').html(truncateDesc($('#<?php echo $extension; ?>_desc').html()));</script>
+
 			<?php
-			echo $plugin_description;
 			if (!empty($plugin_URL)) {
 				?>
 				<br />
@@ -251,8 +294,33 @@ foreach ($filelist as $extension) {
 				<a href="<?php echo $optionlink; ?>" ><?php echo gettext("Change plugin options"); ?></a>
 				<?php
 			}
+			if ($plugin_disable) {
+				?>
+				<p id="showdisable_<?php echo $extension; ?>" style="display:none" class="warningbox">
+					<?php
+					if ($plugin_disable) {
+						echo $plugin_disable;
+					}
+					?>
+				</p>
+				<?php
+			}
+			if ($plugin_notice) {
+				?>
+				<p id="show_<?php echo $extension; ?>" style="display:none" class="notebox">
+					<?php
+					if ($plugin_notice) {
+						if ($plugin_disable) {
+							echo '<br /><br />';
+						}
+						echo $plugin_notice;
+					}
+					?>
+				</p>
+				<?php
+			}
 			?>
-		</span>
+			</span>
 		</td>
 	</tr>
 	<?php

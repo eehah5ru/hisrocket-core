@@ -5,7 +5,6 @@
  * @package plugins
  */
 define('OFFSET_PATH', 1);
-require_once(dirname(__FILE__).'/admin-functions.php');
 require_once(dirname(__FILE__).'/admin-globals.php');
 
 admin_securityChecks(NULL, currentRelativeURL(__FILE__));
@@ -21,7 +20,7 @@ if (isset($_GET['action'])) {
 				ftruncate($f,0);
 				fclose($f);
 				clearstatcache();
-				if (basename($file) == 'security_log.txt') {
+				if (basename($file) == 'security.log') {
 					zp_apply_filter('admin_log_actions', true, $file, $action);	// have to record the fact
 				}
 				break;
@@ -29,7 +28,7 @@ if (isset($_GET['action'])) {
 				@unlink($file);
 				clearstatcache();
 				unset($_GET['tab']); // it is gone, after all
-				if (basename($file) == 'security_log.txt') {
+				if (basename($file) == 'security.log') {
 					zp_apply_filter('admin_log_actions', true, $file, $action);	// have to record the fact
 				}
 				break;
@@ -51,36 +50,13 @@ if (isset($_GET['action'])) {
 		}
 	}
 }
-// Print our header
 
-$filelist = safe_glob(SERVERPATH . "/" . DATA_FOLDER . '/*.txt');
-if (count($filelist)>0) {
-	$subtabs = array();
-	if (isset($_GET['tab'])) {
-		$default = sanitize($_GET['tab'],3);
-	} else {
-		$default = NULL;
-	}
-	foreach ($filelist as $logfile) {
-		$log = substr(basename($logfile), 0, -4);
-		$logfiletext = str_replace('_', ' ',$log);
-		$logfiletext = strtoupper(substr($logfiletext, 0, 1)).substr($logfiletext, 1);
-		$subtabs = array_merge($subtabs, array($logfiletext => 'admin-logs.php?page=logs&amp;tab='.$log));
-		if (filesize($logfile) > 0 && empty($default)) {
-			$default = $log;
-		}
-	}
+list($subtabs, $default) = getLogTabs();
+$zenphoto_tabs['logs'] = array(	'text'=>gettext("logs"),
+												'link'=>WEBPATH."/".ZENFOLDER.'/admin-logs.php?page=logs',
+												'subtabs'=>$subtabs,
+												'default'=>$default);
 
-	$zenphoto_tabs['logs']['subtabs'] = $subtabs;
-	$logfiletext = str_replace('_', ' ',$default);
-	$logfiletext = strtoupper(substr($logfiletext, 0, 1)).substr($logfiletext, 1);
-	$logfile = SERVERPATH . "/" . DATA_FOLDER . '/'.$default.'.txt';
-	if (filesize($logfile) > 0) {
-		$logtext = explode("\n",file_get_contents($logfile));
-	} else {
-		$logtext = array();
-	}
-}
 printAdminHeader('logs',$default);
 echo "\n</head>";
 ?>
@@ -94,8 +70,16 @@ echo "\n</head>";
 	?>
 	<div id="content">
 	<?php
-	if (count($filelist)>0) {
-	?>
+	if ($default) {
+		$logfiletext = str_replace('_', ' ',$default);
+		$logfiletext = strtoupper(substr($logfiletext, 0, 1)).substr($logfiletext, 1);
+		$logfile = SERVERPATH . "/" . DATA_FOLDER . '/'.$default.'.log';
+		if (file_exists($logfile) && filesize($logfile) > 0) {
+			$logtext = explode("\n",file_get_contents($logfile));
+		} else {
+			$logtext = array();
+		}
+		?>
 		<h1><?php echo gettext("View logs:");?></h1>
 
 		<?php $subtab = printSubtabs($default); ?>
@@ -105,7 +89,7 @@ echo "\n</head>";
 				<form name="delete_log" action="?action=delete_log&amp;page=logs&amp;tab=<?php echo $subtab; ?>" method="post" style="float: left">
 					<?php XSRFToken('delete_log');?>
 					<input type="hidden" name="action" value="delete" />
-					<input type="hidden" name="filename" value="<?php echo $subtab; ?>.txt" />
+					<input type="hidden" name="filename" value="<?php echo $subtab; ?>.log" />
 					<div class="buttons">
 						<button type="submit" class="tooltip" id="delete_log_<?php echo $subtab; ?>" title="<?php printf(gettext("Delete %s"),$logfiletext);?>">
 							<img src="images/edit-delete.png" style="border: 0px;" alt="delete" /> <?php echo gettext("Delete");?>
@@ -118,7 +102,7 @@ echo "\n</head>";
 					<form name="clear_log" action="?action=clear_log&amp;page=logs&amp;tab=<?php echo $subtab; ?>" method="post" style="float: left">
 						<?php XSRFToken('clear_log');?>
 						<input type="hidden" name="action" value="clear" />
-						<input type="hidden" name="filename" value="<?php echo $subtab; ?>.txt" />
+						<input type="hidden" name="filename" value="<?php echo $subtab; ?>.log" />
 						<div class="buttons">
 							<button type="submit" class="tooltip" id="clear_log_<?php echo $subtab; ?>" title="<?php printf(gettext("Reset %s"),$logfiletext);?>">
 								<img src="images/refresh.png" style="border: 0px;" alt="clear" /> <?php echo gettext("Reset");?>
@@ -129,7 +113,7 @@ echo "\n</head>";
 					<form name="download_log" action="?action=download_log&amp;page=logs&amp;tab=<?php echo $subtab; ?>" method="post" style="float: left">
 						<?php XSRFToken('download_log');?>
 						<input type="hidden" name="action" value="download" />
-						<input type="hidden" name="filename" value="<?php echo $subtab; ?>.txt" />
+						<input type="hidden" name="filename" value="<?php echo $subtab; ?>.log" />
 						<div class="buttons">
 							<button type="submit" class="tooltip" id="download_log_<?php echo $subtab; ?>" title="<?php printf(gettext("Download %s ZIP file"),$logfiletext);?>">
 								<img src="images/down.png" style="border: 0px;" alt="download" /> <?php echo gettext("Download");?>

@@ -1,4 +1,5 @@
 <?php
+require_once(SERVERPATH.'/'.ZENFOLDER.'/lib-MimeTypes.php');
 /** downloadList functions
  *
  * @author Malte Müller (acrylian)
@@ -21,11 +22,27 @@ if(isset($_GET['download'])) {
 		header("Location: $location");
 		exit;
 	} else {
+		$hash = getOption('downloadList_pass');
+		if (GALLERY_SECURITY != 'public' || $hash) {
+			//	credentials required to download
+			if (!zp_loggedin((getOption('downloadList_rights'))?FILE_RIGHTS:ALL_RIGHTS)) {
+				$user = getOption('downloadList_user');
+				zp_handle_password('download_auth', $hash, $user);
+				if (!empty($hash) && zp_getCookie('download_auth') == $hash) {
+					$show = ($user)?true:NULL;
+					$hint = get_language_string(getOption('downloadList_hint'));
+					printPasswordForm($hint, true, $show, '?download='.$item);
+					exit();
+				}
+			}
+		}
 		$file = getDownloadItemPath($item);
 		if(file_exists($file)) {
 			updatedownloadListItemCount($file);
+			$ext = getSuffix($file);
+			$mimetype = getMimeString($ext);
 			header('Content-Description: File Transfer');
-			header('Content-Type: application/octet-stream');
+			header('Content-Type: '.$mimetype);
 			header('Content-Disposition: attachment; filename='.basename(urldecode($file)));
 			header('Content-Transfer-Encoding: binary');
 			header('Expires: 0');
@@ -34,7 +51,7 @@ if(isset($_GET['download'])) {
 			//header('Content-Length: ' . filesize($file)); // This causes corrupted files on my server
 			flush();
 			readfile($file);
-			exit;
+			exit();
 		}
 	}
 }
@@ -146,6 +163,7 @@ function printdownloadList_formatBytes($b,$p = null) {
  */
 function downloadstatistics_button($buttons) {
 	$buttons[] = array(
+								'category'=>gettext('info'),
 								'enable'=>true,
 								'button_text'=>gettext('Download statistics'),
 								'formname'=>'downloadstatistics_button',

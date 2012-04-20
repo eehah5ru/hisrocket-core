@@ -14,13 +14,14 @@ if (file_exists(dirname(dirname(__FILE__)).'/'.USER_PLUGIN_FOLDER.'/alt/lib-auth
 	require_once(dirname(__FILE__).'/lib-auth.php');
 	$_zp_authority = new Zenphoto_Authority();
 }
+
 foreach ($_zp_authority->getRights() as $key=>$right) {
 	define($key,$right['value']);
 }
 
 define('MANAGED_OBJECT_RIGHTS_EDIT', 1);
 define('MANAGED_OBJECT_RIGHTS_UPLOAD', 2);
-define('MANAGED_OBJECT_RIGHTS_VIEW_IMAGE', 4);
+define('MANAGED_OBJECT_RIGHTS_VIEW', 1);
 define('LIST_RIGHTS', NO_RIGHTS);
 
 if (defined('VIEW_ALL_RIGHTS')) {
@@ -68,14 +69,12 @@ if (isset($_POST['login'])) {	//	Handle the login form.
 	if (isset($_GET['ticket'])) { // password reset query
 		$_zp_authority->validateTicket(sanitize($_GET['ticket']), sanitize(@$_GET['user']));
 	}
-	$_zp_loggedin = $_zp_authority->checkCookieCredentials();
+	$_zp_loggedin = zp_apply_filter('authorization_cookie',$_zp_authority->checkCookieCredentials());
 	if (is_object($_zp_current_admin_obj)) {
-		$_zp_current_admin_obj->lastlogon = $_zp_current_admin_obj->get('loggedin');
 		$locale = $_zp_current_admin_obj->getLanguage();
 		if (!empty($locale)) {	//	set his prefered language
 			setupCurrentLocale($locale);
 		}
-		$_zp_loggedin = zp_apply_filter('authorization_cookie',$_zp_loggedin);
 	}
 }
 if (!$_zp_loggedin) {	//	Clear the ssl cookie

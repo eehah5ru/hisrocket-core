@@ -21,10 +21,11 @@
  */
 $plugin_description = gettext("Enable <strong>dynamic-locale</strong> to allow viewers of your site to select the language translation of their choice.");
 $plugin_author = "Stephen Billard (sbillard)";
-$plugin_version = '1.4.1';
+$plugin_version = '1.4.2';
 $option_interface = 'dynamic_locale_options';
 
 zp_register_filter('theme_head', 'dynamic_localeJS');
+define('SEO_LOCALES',function_exists('filterLocale_load_request'));
 
 /**
  * prints a form for selecting a locale
@@ -59,23 +60,23 @@ function printLanguageSelector($flags=NULL) {
 
 			$currentValue = getOption('locale');
 			foreach ($_languages as $text=>$lang) {
-				$t = explode("_", $lang);
-				$lang_abbrev = $t[0];
 				?>
 				<li<?php if ($lang==$currentValue) echo ' class="currentLanguage"'; ?>>
 					<?php
 					if ($lang!=$currentValue) {
-						?>
-						<a href="javascript:launchScript('',['locale=<?php echo $lang; ?>']);" >
-						<?php
+						if (SEO_LOCALES) {
+							?>
+							<a href="<?php echo html_encode(str_replace(WEBPATH, WEBPATH.'/'.substr($lang,0,2), $_SERVER['REQUEST_URI'])); ?>" >
+							<?php
+						} else {
+							?>
+							<a href="?locale=<?php echo $lang; ?>" >
+							<?php
+						}
 					}
-					if (file_exists(SERVERPATH.'/'.ZENFOLDER.'/locale/'.$lang.'/flag.png')) {
-						$flag = WEBPATH.'/'.ZENFOLDER.'/locale/'.$lang.'/flag.png';
-					} else {
-						$flag = WEBPATH.'/'.ZENFOLDER.'/locale/missing_flag.png';
-					}
+					$flag = getLanguageFlag($lang);
 					?>
-					<?php echo $lang_abbrev ?>
+					<img src="<?php echo $flag; ?>" alt="<?php echo $text; ?>" title="<?php echo $text; ?>" />
 					<?php
 					if ($lang!=$currentValue) {
 						?>

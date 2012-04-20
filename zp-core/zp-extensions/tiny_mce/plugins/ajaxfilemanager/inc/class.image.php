@@ -1,4 +1,9 @@
 <?php
+	if(!defined('AJAX_INIT_DONE'))
+	{
+		die('Permission denied');
+	}
+?><?php
 	/**
 	 * this class provide functions to edit an image, e.g. resize, rotate, flip, crop
 	 * @author Logan Cai cailongqun [at] yahoo [dot] com [dot] cn
@@ -489,6 +494,13 @@
        $giftype = ($write) ? ' Create Support' : ' Read Support';
         $support = strtoupper($extension) . ($extension == 'gif' ? $giftype : ' Support');
 
+        if (isset($this->gdInfo['JPG Support']) && ($extension=='jpg' || $extension=='jpeg')) 
+        {
+        	$extension='jpg';
+        }else if (isset($this->gdInfo['JPEG Support']) && ($extension=='jpg' || $extension=='jpeg')) 
+        {
+        	$extension='jpeg';
+        }
         if (!isset($this->gdInfo[$support]) || $this->gdInfo[$support] == false) {
             $request = ($write) ? 'saving' : 'reading';
             $this->_debug("Support for $request the file type '$extension' cannot be found.");

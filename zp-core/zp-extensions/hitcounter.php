@@ -6,7 +6,7 @@
  */
 $plugin_description = gettext('Automatically increments hitcounters on Zenphoto objects viewed by a "visitor".');
 $plugin_author = "Stephen Billard (sbillard)";
-$plugin_version = '1.4.1';
+$plugin_version = '1.4.2';
 $option_interface = 'hitcounter_options';
 
 zp_register_filter('load_theme_script', 'hitcounter_load_script');
@@ -66,7 +66,7 @@ class hitcounter_options {
 		switch ($option) {
 			case 'hitcounter_set_defaults':
 				?>
-				<script language="javascript" type="text/javascript">
+				<script type="text/javascript">
 				// <!-- <![CDATA[
 				function hitcounter_defaults() {
 					$('#hitcounter_ignoreIPList').val('');
@@ -84,7 +84,7 @@ class hitcounter_options {
 				?>
 				<input type="hidden" name="<?php echo CUSTOM_OPTION_PREFIX; ?>'text-hitcounter_ignoreIPList" value="0" />
 				<input type="text" size="30" id="hitcounter_ignoreIPList" name="hitcounter_ignoreIPList" value="<?php echo html_encode($currentValue); ?>" />
-				<script language="javascript" type="text/javascript">
+				<script type="text/javascript">
 				// <!-- <![CDATA[
 				function hitcounter_insertIP() {
 					if ($('#hitcounter_ignoreIPList').val() == '') {

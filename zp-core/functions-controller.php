@@ -206,68 +206,6 @@ function zp_handle_comment() {
  * @since 1.3
  * @author Ozh
  **/
-function editInPlace_handle_request($context = '', $field = '', $value = '', $orig_value = '') {
-	// Cannot edit when context not set in current page (should happen only when editing in place from index.php page)
-	if ( !in_context(ZP_IMAGE) && !in_context(ZP_ALBUM) && !in_context(ZP_ZENPAGE_PAGE) && !in_context(ZP_ZENPAGE_NEWS_ARTICLE))
-	die ($orig_value.'<script type="text/javascript">alert("'.gettext('Oops.. Cannot edit from this page').'");</script>');
-
-	// Make a copy of context object
-	switch ($context) {
-		case 'image':
-			global $_zp_current_image;
-			$object = $_zp_current_image;
-			break;
-		case 'album':
-			global $_zp_current_album;
-			$object = $_zp_current_album;
-			break;
-		case 'zenpage_page':
-			global $_zp_current_zenpage_page;
-			$object = $_zp_current_zenpage_page;
-			break;
-		case 'zenpage_news':
-			global $_zp_current_zenpage_news;
-			$object = $_zp_current_zenpage_news;
-			break;
-		default:
-			die (gettext('Error: malformed Ajax POST'));
-	}
-
-	// Dates need to be handled before stored
-	if ($field == 'date') {
-		$value = date('Y-m-d H:i:s', strtotime($value));
-	}
-
-	// Sanitize new value
-	switch ($field) {
-		case 'desc':
-			$level = 1;
-			break;
-		case 'title':
-			$level = 2;
-			break;
-		default:
-			$level = 3;
-	}
-	$value = str_replace("\n", '<br />', sanitize($value, $level)); // note: not using nl2br() here because it adds an extra "\n"
-
-	// Write new value
-	if ($field == '_update_tags') {
-		$value = trim($value, ', ');
-		$object->setTags($value);
-	} else {
-		$object->set($field, $value);
-	}
-
-	$result = $object->save();
-	if ($result !== false) {
-		echo $value;
-	} else {
-		echo ('<script type="text/javascript">alert("'.gettext('Could not save!').'");</script>'.$orig_value);
-	}
-	die();
-}
-
 function zp_load_page($pagenum=NULL) {
 	global $_zp_page;
 	if (!is_numeric($pagenum)) {
@@ -312,14 +250,9 @@ function zp_load_search() {
  * @return the loaded album object on success, or (===false) on failure.
  */
 function zp_load_album($folder, $force_nocache=false) {
-	global $_zp_current_album, $_zp_gallery, $_zp_dynamic_album;
+	global $_zp_current_album, $_zp_gallery;
 	$_zp_current_album = new Album($_zp_gallery, $folder, !$force_nocache, true);
 	if (!is_object($_zp_current_album) || !$_zp_current_album->exists) return false;
-	if ($_zp_current_album->isDynamic()) {
-		$_zp_dynamic_album = $_zp_current_album;
-	} else {
-		$_zp_dynamic_album = null;
-	}
 	add_context(ZP_ALBUM);
 	return $_zp_current_album;
 }
@@ -521,6 +454,75 @@ function zp_load_request() {
 		}
 	}
 	return $success;
+}
+
+/**
+*
+* sets up for loading the index page
+* @return string
+*/
+function prepareIndexPage() {
+	global  $_zp_gallery_page, $_zp_obj;
+	handleSearchParms('index');
+	$theme = setupTheme();
+	$_zp_gallery_page = basename($_zp_obj = THEMEFOLDER."/$theme/index.php");
+	return $theme;
+}
+
+/**
+ *
+ * sets up for loading an album page
+ */
+function prepareAlbumPage() {
+	global  $_zp_current_album, $_zp_gallery_page, $_zp_obj;
+	if ($_zp_current_album->isDynamic()) {
+		$search = $_zp_current_album->getSearchEngine();
+		zp_setCookie("zenphoto_search_params", $search->getSearchParams(), SEARCH_DURATION);
+	} else {
+		handleSearchParms('album', $_zp_current_album);
+	}
+	$theme =  setupTheme();
+	$_zp_gallery_page = basename($_zp_obj = THEMEFOLDER."/$theme/album.php");
+	return $theme;
+}
+
+/**
+ *
+ * sets up for loading an image page
+ * @return string
+ */
+function prepareImagePage() {
+	global  $_zp_current_album, $_zp_current_image, $_zp_gallery_page, $_zp_obj;
+	handleSearchParms('image', $_zp_current_album, $_zp_current_image);
+	$theme =  setupTheme();
+	$_zp_gallery_page =  basename($_zp_obj = THEMEFOLDER."/$theme/image.php");
+	// re-initialize video dimensions if needed
+	if (isImageVideo() & isset($_zp_flash_player)) {
+		$_zp_current_image->updateDimensions();
+	}
+	return $theme;
+}
+
+/**
+ *
+ * sets up for loading p=page pages
+ * @return string
+ */
+function prepareCustomPage() {
+	global  $_zp_current_album, $_zp_current_image, $_zp_gallery_page, $_zp_obj;
+	handleSearchParms('page', $_zp_current_album, $_zp_current_image);
+	$theme = setupTheme();
+	$page = str_replace(array('/','\\','.'), '', sanitize($_GET['p']));
+	if (isset($_GET['z'])) { // system page
+		if ($subfolder = sanitize($_GET['z'])) {
+			$subfolder .= '/';
+		}
+		$_zp_gallery_page = basename($_zp_obj = ZENFOLDER.'/'.$subfolder.$page.'.php');
+	} else {
+		$_zp_obj = THEMEFOLDER."/$theme/$page.php";
+		$_zp_gallery_page = basename($_zp_obj);
+	}
+	return $theme;
 }
 
 ?>

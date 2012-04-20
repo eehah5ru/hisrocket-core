@@ -22,8 +22,8 @@ class Comment extends PersistentObject {
 	 * @param int $id set to the ID of the comment if not a new one.
 	 * @return Comment
 	 */
-	function Comment($id=NULL) {
-		$new = parent::PersistentObject('comments', array('id'=>$id), NULL, true, is_null($id));
+	function __construct($id=NULL) {
+		$new = parent::PersistentObject('comments', array('id'=>$id), 'id', true, is_null($id));
 	}
 
 	/**

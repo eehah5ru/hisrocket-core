@@ -1,4 +1,9 @@
 <?php
+	if(!defined('AJAX_INIT_DONE'))
+	{
+		die('Permission denied');
+	}
+?><?php
 	/**
 	 * file modification
 	 * @author Logan Cai (cailongqun [at] yahoo [dot] com [dot] cn)
@@ -37,6 +42,17 @@
 					$this->fileInfo['name'] = basename($path);	
 					$this->fileInfo['is_writable'] = $this->isWritable();
 					$this->fileInfo['is_readable'] = $this->isReadable();
+					$imageSize = @getimagesize($path);
+					if(is_array($imageSize) && !empty($imageSize))
+					{
+						$this->fileInfo['is_image'] = 1;
+						$this->fileInfo['x'] = $imageSize[0];
+						$this->fileInfo['y'] = $imageSize[1];
+					}else 
+					{
+						$this->fileInfo['is_image'] = 0;
+					}
+					
 				}elseif(is_dir($this->filePath))
 				{
 					$this->fileStat = @stat($path);

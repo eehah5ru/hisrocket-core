@@ -1,6 +1,8 @@
 <?php
 /**
  * translates accented characters to unaccented ones
+ *
+ * @author Stephen Billard (sbillard)
  * @package plugins
  */
 
@@ -9,7 +11,7 @@ $plugin_is_filter = 5|ADMIN_PLUGIN;
 */
 $plugin_description = gettext("Filter applied to filenames to translate characters with diacritical marks to unmarked ones for SEO friendly URLs.");
 $plugin_author = "Stephen Billard (sbillard)";
-$plugin_version = '1.4.1';
+$plugin_version = '1.4.2';
 
 $option_interface = 'zenphoto_seo';
 

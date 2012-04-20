@@ -7,17 +7,32 @@
  * @subpackage zenpage
  */
 define("OFFSET_PATH",4);
-require_once(dirname(dirname(dirname(__FILE__))).'/admin-functions.php');
 require_once(dirname(dirname(dirname(__FILE__))).'/admin-globals.php');
 require_once("zenpage-admin-functions.php");
 
 admin_securityChecks(ZENPAGE_NEWS_RIGHTS, currentRelativeURL(__FILE__));
 
 $reports = array();
-if(isset($_POST['processcheckeditems'])) {
+if (isset($_GET['bulkaction'])) {
+	$reports[] = zenpageBulkActionMessage(sanitize($_GET['bulkaction']));
+}
+if(isset($_POST['action'])) {
 	XSRFdefender('checkeditems');
-	processZenpageBulkActions('Category',$reports);
-	updateItemSortorder('categories',$reports);
+	if ($_POST['checkallaction']=='noaction') {
+		if (updateItemSortorder('categories',$reports)) {
+			$reports[] = "<br clear=\"all\"><p class='messagebox fade-message'>".gettext("Sort order saved.")."</p>";
+		}
+	} else {
+		$action = processZenpageBulkActions('Category');
+		$uri = $_server['REQUEST_URI'];
+		if (strpos($uri, '?')) {
+			$uri .= '&bulkaction='.$action;
+		} else {
+			$uri .= '?bulkaction='.$action;
+		}
+		header('Location: ' .$uri);
+		exit();
+	}
 }
 if(isset($_GET['delete'])) {
 	XSRFdefender('delete_category');
@@ -98,27 +113,33 @@ printLogoAndLinks();
 		<div id="tab_articles" class="tabbox">
 			<?php
 			zp_apply_filter('admin_note', 'categories', $subtab);
-			foreach ($reports as $report) {
-				echo $report;
+			if ($reports) {
+				$show = array();
+				preg_match_all('/<p class=[\'"](.*?)[\'"]>(.*?)<\/p>/', implode('', $reports),$matches);
+				foreach ($matches[1] as $key=>$report) {
+					$show[$report][] = $matches[2][$key];
+				}
+				foreach ($show as $type=>$list) {
+					echo '<p class="'.$type.'">'.implode('<br />', $list).'</p>';
+				}
 			}
 			?>
 			<h1>
 			<?php	echo gettext('Categories'); ?><span class="zenpagestats"><?php printCategoriesStatistic();?></span></h1>
 			<form action="admin-categories.php?page=news&amp;tab=categories" method="post" id="checkeditems" name="checkeditems" onsubmit="return confirmAction();">
 				<?php XSRFToken('checkeditems');?>
-				<input	type="hidden" name="action" id="action" value="checkeditems" />
-				<input name="processcheckeditems" type="hidden" value="apply" />
+				<input	type="hidden" name="action" id="action" value="update" />
 				<p class="buttons">
 					<button class="serialize" type="submit" title="<?php echo gettext('Apply'); ?>">
 						<img src="../../images/pass.png" alt="" /><strong><?php echo gettext('Apply'); ?></strong>
 					</button>
-					<?php 
+					<?php
 					if (zp_loggedin(MANAGE_ALL_NEWS_RIGHTS)) {
 						?>
 						<span class="floatright">
-							<strong><a href="admin-edit.php?category&amp;add&amp;XSRFToken=<?php echo getXSRFToken('add')?>" title="<?php echo gettext('New category'); ?>"><img src="images/add.png" alt="" /> <?php echo gettext('New category'); ?></a></strong>
+							<strong><a href="admin-edit.php?newscategory&amp;add&amp;XSRFToken=<?php echo getXSRFToken('add')?>" title="<?php echo gettext('New category'); ?>"><img src="images/add.png" alt="" /> <?php echo gettext('New category'); ?></a></strong>
 						</span>
-						<?php 
+						<?php
 						}
 					?>
 				</p>
@@ -127,6 +148,8 @@ printLogoAndLinks();
 					<div class="headline"><?php echo gettext('Edit this Category'); ?>
 					<?php
 					$checkarray = array(
+													gettext('Set to published') => 'showall',
+													gettext('Set to unpublished') => 'hideall',
 													gettext('*Bulk actions*') => 'noaction',
 													gettext('Delete') => 'deleteall',
 													gettext('Add tags to articles') => 'alltags',
@@ -161,7 +184,7 @@ printLogoAndLinks();
 					</p>
 					<ul class="iconlegend">
 					<?php
-					if (GALLERY_SECURITY != 'private') {
+					if (GALLERY_SECURITY == 'public') {
 						?>
 						<li><img src="../../images/lock.png" alt="" /><?php echo gettext("Has Password"); ?></li>
 						<?php

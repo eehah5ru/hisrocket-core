@@ -7,7 +7,6 @@
  * @subpackage zenpage
  */
 define("OFFSET_PATH",4);
-require_once(dirname(dirname(dirname(__FILE__))).'/admin-functions.php');
 require_once(dirname(dirname(dirname(__FILE__))).'/admin-globals.php');
 require_once("zenpage-admin-functions.php");
 if(is_AdminEditPage('newsarticle')) {
@@ -34,6 +33,8 @@ if(is_AdminEditPage('page')) {
 						$as = sprintf(gettext('copy of %s'),$result->getTitle());
 					}
 					$result->copy($as);
+					$result = new ZenpagePage($as);
+					$_GET['titlelink'] = $as;
 					break;
 				case 'delete':
 					$reports[] = deletePage($result);
@@ -73,6 +74,8 @@ if(is_AdminEditPage('newsarticle')) {
 						$as = sprintf(gettext('copy of %s'),$result->getTitle());
 					}
 					$result->copy($as);
+					$result = new ZenpageNews($as);
+					$_GET['titlelink'] = $as;
 					break;
 				case 'delete':
 					$reports[] = deleteArticle($result);
@@ -195,7 +198,7 @@ codeblocktabsJS();
 		?>
 		<div id="tab_articles" class="tabbox">
 		<?php
-		$admintype = 'category';
+		$admintype = 'newscategory';
 		IF (zp_loggedin(MANAGE_ALL_NEWS_RIGHTS)) {
 			$additem = gettext('New Category');
 		} else {
@@ -240,7 +243,7 @@ codeblocktabsJS();
 					echo '<p class="scheduledate"><small>'.gettext('<strong>Note:</strong> Scheduled publishing is not active unless the article is also set to <em>published</em>').'</small></p>';
 				}
 			}
-			if($result->inProtectedCategory() && (GALLERY_SECURITY != 'private')) {
+			if($result->inProtectedCategory()) {
 			 echo '<p class="notebox">'.gettext('<strong>Note:</strong> This article belongs to a password protected category.').'</p>';
 			}
 		}
@@ -259,8 +262,8 @@ codeblocktabsJS();
 					echo '<p class="scheduledate"><small>'.gettext('Note: Scheduled publishing is not active unless the page is also set to <em>published</em>').'</small></p>';
 				}
 			}
-			if($result->isProtected() && (GALLERY_SECURITY != 'private')) {
-				echo '<p class="notebox">'.gettext('<strong>Note:</strong> This page is either password protected or has a passport protected parent.').'</p>';
+			if($result->getPassword()) {
+				echo '<p class="notebox">'.gettext('<strong>Note:</strong> This page is password protected.').'</p>';
 			}
 		}
 }
@@ -291,6 +294,7 @@ if($result->transient) {
 <?php
 if(is_AdminEditPage("newsarticle")) {
 	$backurl = 'admin-news-articles.php?'.$page;
+	if (isset($_GET['category'])) $backurl .= '&amp;category='.html_encode($_GET['category']);
 }
 if(is_AdminEditPage("category")) {
 	$backurl = 'admin-categories.php?';
@@ -312,12 +316,12 @@ zp_apply_filter('admin_note','news', $subtab);
 	</button>
 	</p>
 	<div class="floatright">
-	<?php 
+	<?php
 	if ($additem) {
 		?>
 		<strong><a href="admin-edit.php?<?php echo $admintype; ?>&amp;add&amp;XSRFToken=<?php echo getXSRFToken('add')?>" title="<?php echo $additem; ?>"><img src="images/add.png" alt="" /> <?php echo $additem; ?></a></strong>
-		<?php 
-		}	
+		<?php
+		}
 	?>
 	<span id="tip"><a href="#"><img src="images/info.png" alt="" /><?php echo gettext("Usage tips"); ?></a></span>
 	<?php
@@ -425,10 +429,10 @@ zp_apply_filter('admin_note','news', $subtab);
 				}
 				if(is_AdminEditPage('page') || is_AdminEditPage('category')) {
 				?>
-					<p class="passwordextrashow" <?php if (GALLERY_SECURITY == 'private') echo 'style="display:none"'; ?>>
+					<p class="passwordextrashow" <?php if (GALLERY_SECURITY != 'public') echo 'style="display:none"'; ?>>
 					<input	type="hidden" name="password_enabled" id="password_enabled" value="0" />
 					<?php
-					if (GALLERY_SECURITY != 'private') {
+					if (GALLERY_SECURITY == 'public') {
 						?>
 						<a href="javascript:toggle_passwords('',true);">
 							<?php echo gettext("Password:"); ?>
@@ -441,16 +445,7 @@ zp_apply_filter('admin_note','news', $subtab);
 						} else {
 							$x = '          ';
 							?>
-							<script type="text/javascript">
-								function resetPass() {
-									$('#user_name').val('');
-									$('#pass').val('');
-									$('#pass_2').val('');
-									$('.hint').val('');
-									toggle_passwords('',true);
-								}
-							</script>
-							<a onclick="resetPass();" title="<?php echo gettext('clear password'); ?>"><img src="../../images/lock.png"  alt="" class="icon-postiion-top8" /></a>
+							<a onclick="resetPass('');" title="<?php echo gettext('clear password'); ?>"><img src="../../images/lock.png"  alt="" class="icon-postiion-top8" /></a>
 							<?php
 						}
 						?>
@@ -484,7 +479,7 @@ zp_apply_filter('admin_note','news', $subtab);
 						</label>
 						<label class="checkboxlabel">
 								<input type="radio" id="delete_object" name="copy_delete_object" value="delete"
-									onclick="image_deleteconfirm(this,'','<?php printf(gettext('Are you sure you want to delete this %s?'), $deleteitem); ?>');$('#copyfield').hide();$('#copy_object').removeAttr('checked');" />
+										onclick="deleteConfirm('delete_object','','<?php printf(gettext('Are you sure you want to delete this %s?'), $deleteitem); ?>');$('#copyfield').hide();" />
 							<?php echo gettext('delete'); ?>
 						</label>
 						<br clear="all" />

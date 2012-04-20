@@ -38,7 +38,7 @@
 $plugin_is_filter = 5|ADMIN_PLUGIN|THEME_PLUGIN;
 $plugin_description = gettext("Multiple layouts");
 $plugin_author = "Malte Müller (acrylian), Stephen Billard (sbillard)";
-$plugin_version = '1.4.1';
+$plugin_version = '1.4.2';
 $option_interface = 'multipleLayoutOptions';
 
 zp_register_filter('load_theme_script','getLayout');
@@ -264,7 +264,7 @@ function getLayoutSelector($obj,$type,$text,$prefix='',$secondary=false) {
 		case 'images':
 			$filesmask = 'image';
 			$album = $obj->album;
-			$child = $album->getParentID();
+			$child = $album->getID();
 			$defaulttext = gettext('album default');
 			break;
 		case 'pages':

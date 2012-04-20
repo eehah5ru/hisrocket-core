@@ -14,8 +14,8 @@ class ZenpageNews extends ZenpageItems {
 	var $view_rights = VIEW_NEWS_RIGHTS;
 	var $categories = NULL;
 
-	function ZenpageNews($titlelink, $allowCreate=NULL) {
-		$new = parent::PersistentObject('news', array('titlelink'=>$titlelink), NULL, true, empty($titlelink), $allowCreate);
+	function __construct($titlelink, $allowCreate=NULL) {
+		$new = parent::PersistentObject('news', array('titlelink'=>$titlelink), 'titlelink', true, empty($titlelink), $allowCreate);
 	}
 
 	/**
@@ -66,6 +66,8 @@ class ZenpageNews extends ZenpageItems {
 			$newobj = new ZenpageNews($newID);
 			$newobj->setTitle($newtitle);
 			$newobj->setTags($this->getTags());
+			$newobj->setShow(0);
+			$newobj->setDateTime(date('Y-m-d H:i:s'));
 			$newobj->save();
 			$categories = array();
 			foreach ($this->getCategories() as $cat) {
@@ -107,7 +109,7 @@ class ZenpageNews extends ZenpageItems {
  */
 	function inProtectedCategory($only=false) {
 		$categories = $this->getCategories();
-		if(count($categories) > 0) {
+		if(!empty($categories)) {
 			foreach($categories as $cat) {
 				$catobj = new ZenpageCategory($cat['titlelink']);
 				$password = $catobj->getPassword();
@@ -186,13 +188,22 @@ class ZenpageNews extends ZenpageItems {
 			return true;
 		}
 		if (zp_loggedin($action)) {
+			if (GALLERY_SECURITY != 'public' && $this->getShow() && $action == LIST_RIGHTS) {
+				return LIST_RIGHTS;
+			}
 			if ($_zp_current_admin_obj->getUser() == $this->getAuthor()) {
 				return true;	//	he is the author
+			}
+			if ($this->getShow() && $action == LIST_RIGHTS) {
+				return true;
 			}
 			$mycategories = $_zp_current_admin_obj->getObjects('news');
 			if (!empty($mycategories)) {
 				foreach ($this->getCategories() as $category) {
-					if (array_search($category['titlelink'], $mycategories)!==false) return true;
+					$cat = new ZenpageCategory($category['titlelink']);
+					if ($cat->isMyItem($action)) {
+						return true;
+					}
 				}
 			}
 		}
@@ -246,6 +257,16 @@ class ZenpageNews extends ZenpageItems {
 		} else {
 			return false;
 		}
+	}
+
+	/**
+	* Returns the url to a news article
+	*
+	*
+	* @return string
+	*/
+	function getNewsLink() {
+		return $this->getNewsBaseURL().$this->getNewsTitlePath().urlencode($this->getTitlelink());
 	}
 
 } // zenpage news class end

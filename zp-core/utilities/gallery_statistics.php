@@ -10,7 +10,6 @@
 define('OFFSET_PATH', 3);
 chdir(dirname(dirname(__FILE__)));
 
-require_once(dirname(dirname(__FILE__)).'/admin-functions.php');
 require_once(dirname(dirname(__FILE__)).'/admin-globals.php');
 require_once(dirname(dirname(__FILE__)).'/'.PLUGIN_FOLDER.'/image_album_statistics.php');
 
@@ -18,10 +17,18 @@ if(getOption('zp_plugin_zenpage')) {
 	require_once(dirname(dirname(__FILE__)).'/'.PLUGIN_FOLDER.'/zenpage/zenpage-admin-functions.php');
 }
 
-$button_text = gettext('Gallery Statistics');
-$button_hint = gettext('Shows statistical graphs and info about your gallery\'s images and albums.');
-$button_icon = 'images/bar_graph.png';
-$button_rights = OVERVIEW_RIGHTS;
+$buttonlist[] = array(
+								'category'=>gettext('info'),
+								'enable'=>'1',
+								'button_text'=>gettext('Gallery Statistics'),
+								'formname'=>'gallery_statistics.php',
+								'action'=>'utilities/gallery_statistics.php',
+								'icon'=>'images/bar_graph.png',
+								'title'=>gettext('Shows statistical graphs and info about your gallery\'s images and albums.'),
+								'alt'=>'',
+								'hidden'=>'',
+								'rights'=> OVERVIEW_RIGHTS | ADMIN_RIGHTS
+								);
 
 admin_securityChecks(OVERVIEW_RIGHTS, currentRelativeURL(__FILE__));
 
@@ -43,7 +50,7 @@ function gallerystats_filesize_r($path){
 	if(!file_exists($path)) return 0;
 	if(is_file($path)) return filesize($path);
 	$ret = 0;
-	foreach(glob($path."/*") as $fn)
+	foreach(safe_glob($path."/*") as $fn)
 		$ret += gallerystats_filesize_r($fn);
 	return $ret;
 }

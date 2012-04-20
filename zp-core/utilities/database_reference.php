@@ -8,17 +8,20 @@
 define('OFFSET_PATH', 3);
 chdir(dirname(dirname(__FILE__)));
 
-require_once(dirname(dirname(__FILE__)).'/admin-functions.php');
 require_once(dirname(dirname(__FILE__)).'/admin-globals.php');
-/*
-if(getOption('zp_plugin_zenpage')) {
-	require_once(dirname(dirname(__FILE__)).'/'.PLUGIN_FOLDER.'/zenpage/zenpage-admin-functions.php');
-}
-*/
-$button_text = gettext('Database quick reference');
-$button_hint = gettext('Shows all database table and field info for quick reference.');
-$button_icon = 'images/info.png';
-$button_rights = ADMIN_RIGHTS;
+
+$buttonlist[] = $mybutton = array(
+																	'category'=>gettext('info'),
+																	'enable'=>'1',
+																	'button_text'=>gettext('Database quick reference'),
+																	'formname'=>'database_reference.php',
+																	'action'=>'utilities/database_reference.php',
+																	'icon'=>'images/info.png',
+																	'title'=>gettext('Shows all database table and field info for quick reference.'),
+																	'alt'=>'',
+																	'hidden'=>'',
+																	'rights'=> ADMIN_RIGHTS
+																	);
 
 admin_securityChecks(NULL, currentRelativeURL(__FILE__));
 
@@ -63,10 +66,10 @@ h2 {
 <?php printTabs(); ?>
 <div id="content">
 <?php zp_apply_filter('admin_note','database', ''); ?>
-<h1><a name="top"></a><?php echo $button_text; ?></h1>
+<h1><a name="top"></a><?php echo $mybutton['button_text']; ?></h1>
 <p>
-	<?php echo $button_hint; ?>
-	<?php echo gettext("The internal Zenphoto table relations can be viewed on the PDF database reference that is included in the release package within the /docs_files folder of your Zenphoto installation. For more detailed info about the database use tools like myPhpAdmin."); ?>
+	<?php echo $mybutton['title'];; ?>
+	<?php echo gettext("The internal Zenphoto table relations can be viewed on the PDF database reference that is included in the release package within the /docs_files folder of your Zenphoto installation. For more detailed info about the database use tools like phpMyAdmin."); ?>
 </p>
 <?php
 $database_name =db_name();

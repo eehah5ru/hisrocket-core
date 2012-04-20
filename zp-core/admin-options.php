@@ -7,7 +7,6 @@
 // force UTF-8 Ø
 
 define('OFFSET_PATH', 1);
-require_once(dirname(__FILE__).'/admin-functions.php');
 require_once(dirname(__FILE__).'/admin-globals.php');
 
 admin_securityChecks(OPTIONS_RIGHTS, currentRelativeURL(__FILE__));
@@ -46,7 +45,7 @@ if (isset($_GET['action'])) {
 			} else {
 				$notify = '?tag_parse_error';
 			}
-			$oldloc = getOption('locale', true); // get the option as stored in the database, not what might have been set by a cookie
+			$oldloc = getOptionFromDB('locale'); // get the option as stored in the database, not what might have been set by a cookie
 			$newloc = sanitize($_POST['locale'],3);
 			$languages = generateLanguageList(true);
 			foreach ($languages as $text=>$lang) {
@@ -93,9 +92,24 @@ if (isset($_GET['action'])) {
 		/*** Gallery options ***/
 		if (isset($_POST['savegalleryoptions'])) {
 
+			if (isset($_POST['album_default'])) {
+				$albpublish = 1;
+			} else {
+				$albpublish = 0;
+			}
+			$gallery->setAlbumPublish($albpublish);
+			if (isset($_POST['image_default'])) {
+				$imgpublish = 1;
+			} else {
+				$imgpublish = 0;
+			}
+
+			setOption('AlbumThumbSelect', sanitize_numeric($_POST['thumbselector']));
+			$gallery->setImagePublish($imgpublish);
 			$gallery->setPersistentArchive((int) isset($_POST['persistent_archive']));
 			$gallery->setGallerySession((int) isset($_POST['album_session']));
 			$gallery->setThumbSelectImages((int) isset($_POST['thumb_select_images']));
+			$gallery->setSecondLevelThumbs((int) isset($_POST['multilevel_thumb_select_images']));
 			$gallery->set('gallery_title', process_language_string_save('gallery_title', 2));
 			$gallery->set('Gallery_description', process_language_string_save('Gallery_description', 1));
 			$gallery->set('website_title', process_language_string_save('website_title', 2));
@@ -117,8 +131,6 @@ if (isset($_GET['action'])) {
 				}
 			}
 			$gallery->setSecurity(sanitize($_POST['gallery_security'],3));
-			$gallery->setUserLogonField(isset($_POST['login_user_field']));
-			setOption('edit_in_place',(int) (sanitize_numeric($_POST['edit_in_place']) && true));
 			if ($_POST['password_enabled']) {
 			$olduser = $gallery->getUser();
 			$newuser = trim(sanitize($_POST['gallery_user'],3));
@@ -170,6 +182,7 @@ if (isset($_GET['action'])) {
 				}
 			}
 			setOption('search_fields', implode(',',$searchfields));
+			setOption('search_cache_duration', sanitize_numeric($_POST['search_cache_duration']));
 			$olduser = getOption('search_user');
 			$newuser = trim(sanitize($_POST['search_user'],3));
 			if ($_POST['password_enabled']) {
@@ -215,6 +228,7 @@ if (isset($_GET['action'])) {
 			setOption('feed_items_albums', sanitize($_POST['feed_items_albums'],3));
 			setOption('feed_imagesize_albums', sanitize($_POST['feed_imagesize_albums'],3));
 			setOption('feed_sortorder_albums', sanitize($_POST['feed_sortorder_albums'],3));
+			setOption('feed_title', sanitize($_POST['feed_title'],3));
 			setOption('feed_cache_expire', sanitize($_POST['feed_cache_expire'],3));
 			setOption('feed_enclosure', (int) isset($_POST['feed_enclosure']));
 			setOption('feed_mediarss', (int) isset($_POST['feed_mediarss']));
@@ -309,9 +323,21 @@ if (isset($_GET['action'])) {
 			setOption('image_sorttype', $st);
 			setOption('image_sortdirection', (int) isset($_POST['image_sortdirection']));
 			setOption('auto_rotate', (int) isset($_POST['auto_rotate']));
+			setOption('use_embedded_thumb', (int) isset($_POST['use_embedded_thumb']));
 			setOption('IPTC_encoding', sanitize($_POST['IPTC_encoding']));
 			foreach ($_zp_exifvars as $key=>$item) {
-				setOption($key, (int) array_key_exists($key, $_POST));
+				$v = sanitize_numeric($_POST[$key]);
+				switch($v) {
+					case 0:
+					case 1:
+						setOption($key.'-disabled', 0);
+						setOption($key, $v);
+						break;
+					case 2:
+						setOption($key, 0);
+						setOption($key.'-disabled', 1);
+						break;
+				}
 			}
 			$returntab = "&tab=image";
 		}
@@ -430,12 +456,15 @@ if (isset($_GET['action'])) {
 		}
 		/*** Security Options ***/
 		if (isset($_POST['savesecurityoptions'])) {
+			$gallery->setUserLogonField(isset($_POST['login_user_field']));
 			setOption('server_protocol', $protocol = sanitize($_POST['server_protocol'],3));
 			if ($protocol == 'http') {
 				zp_setCookie("zenphoto_ssl", "", -368000);
 			}
 			setOption('captcha', sanitize($_POST['captcha']));
 			setOption('obfuscate_cache', (int) isset($_POST['obfuscate_cache']));
+			setOption('IP_tied_cookies', (int) isset($_POST['IP_tied_cookies']));
+			$gallery->save();
 			$returntab = "&tab=security";
 		}
 		/*** custom options ***/
@@ -460,7 +489,6 @@ if (isset($_GET['action'])) {
 }
 printAdminHeader($_current_tab);
 
-zp_apply_filter('texteditor_config', '','zenphoto');
 ?>
 <script type="text/javascript" src="js/farbtastic.js"></script>
 <link rel="stylesheet" href="js/farbtastic.css" type="text/css" />
@@ -497,6 +525,7 @@ if ($_zp_admin_subtab == 'gallery' || $_zp_admin_subtab == 'image') {
 	</script>
 	<?php
 }
+zp_apply_filter('texteditor_config', '','zenphoto');
 ?>
 </head>
 <body>
@@ -541,7 +570,7 @@ if ($subtab == 'general' && zp_loggedin(OPTIONS_RIGHTS)) {
 		<form action="?action=saveoptions" method="post" autocomplete="off">
 			<?php XSRFToken('saveoptions');?>
 			<input	type="hidden" name="savegeneraloptions" value="yes" />
-			<table class="bordered">
+			<table class="bordered options">
 				<tr>
 				 <td colspan="3">
 					<p class="buttons">
@@ -626,7 +655,7 @@ if ($subtab == 'general' && zp_loggedin(OPTIONS_RIGHTS)) {
 					<td width="175"><?php echo gettext("Language:"); ?></td>
 					<td width="350">
 						<?php
-						$currentValue = getOption('locale',true);
+						$currentValue = getOptionFromDB('locale');
 						?>
 						<br />
 						<ul class="languagelist">
@@ -671,11 +700,7 @@ if ($subtab == 'general' && zp_loggedin(OPTIONS_RIGHTS)) {
 								if (empty($dirname)) {
 									$flag = WEBPATH.'/'.ZENFOLDER.'/locale/auto.png';
 								} else {
-									if (file_exists(SERVERPATH.'/'.ZENFOLDER.'/locale/'.$dirname.'/flag.png')) {
-										$flag = WEBPATH.'/'.ZENFOLDER.'/locale/'.$dirname.'/flag.png';
-									} else {
-										$flag = WEBPATH.'/'.ZENFOLDER.'/locale/missing_flag.png';
-									}
+									$flag = getLanguageFlag($dirname);
 								}
 								if (getOption('disallow_'.$dirname)) {
 									$c_attrs = '';
@@ -896,7 +921,7 @@ if ($subtab == 'gallery' && zp_loggedin(OPTIONS_RIGHTS)) {
 			<?php XSRFToken('saveoptions');?>
 			<input	type="hidden" name="savegalleryoptions" value="yes" />
 			<input	type="hidden" name="password_enabled" id="password_enabled" value="0" />
-			<table class="bordered">
+			<table class="bordered options">
 				<tr>
 					<td colspan="3">
 					<p class="buttons">
@@ -922,17 +947,24 @@ if ($subtab == 'gallery' && zp_loggedin(OPTIONS_RIGHTS)) {
 				<tr>
 					<td><?php echo gettext('Gallery type')?></td>
 					<td>
-						<label><input type="radio" name="gallery_security" value="public" alt="<?php echo gettext('public'); ?>"<?php if (GALLERY_SECURITY != 'private') echo ' checked="checked"' ?> onclick="javascript:$('.public_gallery').show();" /><?php echo gettext('public'); ?></label>
+						<label><input type="radio" name="gallery_security" value="public" alt="<?php echo gettext('public'); ?>"<?php if (GALLERY_SECURITY == 'public') echo ' checked="checked"' ?> onclick="javascript:$('.public_gallery').show();" /><?php echo gettext('public'); ?></label>
 						<label><input type="radio" name="gallery_security" value="private" alt="<?php echo gettext('private'); ?>"<?php if (GALLERY_SECURITY == 'private') echo  'checked="checked"'?> onclick="javascript:$('.public_gallery').hide();" /><?php echo gettext('private'); ?></label>
+<?php /**
+TODO: Restricted galleries
+						<label><input type="radio" name="gallery_security" value="restricted" alt="<?php echo gettext('restricted'); ?>"<?php if (GALLERY_SECURITY == 'restricted') echo  'checked="checked"'?> onclick="javascript:$('.public_gallery').hide();" /><?php echo gettext('restricted'); ?></label>
+*/ ?>
 					</td>
 					<td>
 						<?php echo gettext('Private galleries are viewable only by registered users.'); ?>
+						<?php
+						//TODO: Restricted galleries
+						//echo gettext('Restricted galleries are private galleries but users may see only their managed albums.'); ?>
 					</td>
 				</tr>
 				<?php
-				if (GALLERY_SECURITY != 'private') {
+				if (GALLERY_SECURITY == 'public') {
 					?>
-					<tr class="passwordextrashow public_gallery" <?php if (GALLERY_SECURITY == 'private') echo 'style="display:none"'; ?> >
+					<tr class="passwordextrashow public_gallery" <?php if (GALLERY_SECURITY != 'public') echo 'style="display:none"'; ?> >
 						<td style="background-color: #ECF1F2;">
 							<p>
 								<a href="javascript:toggle_passwords('',true);">
@@ -950,16 +982,7 @@ if ($subtab == 'gallery' && zp_loggedin(OPTIONS_RIGHTS)) {
 						} else {
 							$x = '          ';
 							?>
-							<script type="text/javascript">
-								function resetPass() {
-									$('#gallery_user').val('');
-									$('#gallerypass').val('');
-									$('#gallerypass_2').val('');
-									$('.hint').val('');
-									toggle_passwords('',true);
-								}
-							</script>
-							<a onclick="resetPass();" title="<?php echo gettext('clear password'); ?>"><img src="images/lock.png" /></a>
+							<a onclick="resetPass('');" title="<?php echo gettext('clear password'); ?>"><img src="images/lock.png" /></a>
 							<?php
 						}
 						?>
@@ -984,11 +1007,11 @@ if ($subtab == 'gallery' && zp_loggedin(OPTIONS_RIGHTS)) {
 							<p><?php echo gettext("Gallery password hint:"); ?></p>
 						</td>
 						<td>
-							<p><input type="text" size="<?php echo TEXT_INPUT_SIZE; ?>"id="gallery_user"  name="gallery_user" value="<?php echo html_encode($gallery->getUser()); ?>" /></p>
+							<p><input type="text" size="<?php echo TEXT_INPUT_SIZE; ?>"id="user_name"  name="gallery_user" value="<?php echo html_encode($gallery->getUser()); ?>" /></p>
 							<p>
-								<input type="password" size="<?php echo TEXT_INPUT_SIZE; ?>" id="gallerypass" name="gallerypass" value="<?php echo $x; ?>" />
+								<input type="password" size="<?php echo TEXT_INPUT_SIZE; ?>" id="pass" name="gallerypass" value="<?php echo $x; ?>" />
 								<br />
-								<input type="password" size="<?php echo TEXT_INPUT_SIZE; ?>" id="gallerypass_2" name="gallerypass_2" value="<?php echo $x; ?>" />
+								<input type="password" size="<?php echo TEXT_INPUT_SIZE; ?>" id="pass_2" name="gallerypass_2" value="<?php echo $x; ?>" />
 							</p>
 							<p><?php print_language_string_list($gallery->get('gallery_hint'), 'gallery_hint', false, NULL, 'hint') ?></p>
 						</td>
@@ -1045,6 +1068,23 @@ if ($subtab == 'gallery' && zp_loggedin(OPTIONS_RIGHTS)) {
 						value="<?php echo html_encode($gallery->getWebsiteURL());?>" /></td>
 					<td><?php echo gettext("This is used to link back to your main site, but your theme must support it."); ?></td>
 				</tr>
+				<tr>
+				</tr>
+					<td><?php echo gettext("Album thumbnails:"); ?></td>
+					<td>
+						<?php
+						$selections = array();
+						foreach ($_zp_albumthumb_selector as $key=>$selection) {
+							$selections[$selection['desc']] = $key;
+						}
+						?>
+						<select id="thumbselector" name="thumbselector">
+						<?php
+						generateListFromArray(array(getOption('AlbumThumbSelect')),$selections,false,true);
+						?>
+						</select>
+					</td>
+					<td><?php echo gettext("Default thumbnail selection for albums."); ?></td>
 				<tr>
 					<td><?php echo gettext("Sort gallery by:"); ?></td>
 					<td>
@@ -1107,23 +1147,20 @@ if ($subtab == 'gallery' && zp_loggedin(OPTIONS_RIGHTS)) {
 					</td>
 				</tr>
 				<tr>
-					<td width="175"><?php echo gettext('Front-end editing'); ?></td>
-					<td width="350">
-						<label>
-							<input type="radio" name = "edit_in_place" id="edit_in_place_no" value=0<?php if (!getOption('edit_in_place')) echo ' checked="checked"'; ?>><?php echo gettext('Disabled'); ?></input>
-						</label>
-						<label>
-							<input type="radio" name = "edit_in_place" id="edit_in_place_yes" value=1<?php if (getOption('edit_in_place')) echo ' checked="checked"'; ?> onclick="xsrfWarning('edit_in_place','<?php echo gettext('This is really not a secure setting. Are you sure you want to enable it?'); ?>');"><?php echo gettext('Enabled'); ?></input>
-						</label>
-					</td>
-					<td>
-						<p><?php echo gettext('Check to allow editing of Gallery data on the front-end pages. (Sometimes known as <em>Ajax</em> editing.)'); ?></p>
-						<p class="notebox"><?php echo gettext('<strong>NOTE:</strong> enabling this feature is not recommended as it is susceptible to Cross Site Request Forgeries.')?></p>
-					</td>
-				</tr>
-				<tr>
 					<td><?php echo gettext("Gallery behavior:"); ?></td>
 					<td>
+						<p>
+							<label>
+								<input type="checkbox" name="album_default"	value="1"<?php if ($gallery->getAlbumPublish()) echo ' checked="checked"'; ?> />
+								<?php echo gettext("Publish albums by default"); ?>
+							</label>
+						</p>
+						<p>
+							<label>
+								<input type="checkbox" name="image_default"	value="1"<?php if ($gallery->getImagePublish()) echo ' checked="checked"'; ?> />
+								<?php echo gettext("Publish images by default"); ?>
+							</label>
+						</p>
 						<p>
 							<label>
 								<input type="checkbox" name="album_use_new_image_date" id="album_use_new_image_date"
@@ -1131,41 +1168,18 @@ if ($subtab == 'gallery' && zp_loggedin(OPTIONS_RIGHTS)) {
 								<?php echo gettext("use latest image date as album date"); ?>
 							</label>
 						</p>
-						<?php
-						if (GALLERY_SECURITY=='public') {
-							$disable = $gallery->getUser() || getOption('search_user') || getOption('protected_image_user');
-							?>
-							<p class="public_gallery"<?php if (GALLERY_SECURITY == 'private') echo ' style="display:none"'; ?>>
-								<label>
-									<?php
-									if ($disable) {
-										?>
-										<input type="hidden" name="login_user_field" value="<?php echo $gallery->getUserLogonField(); ?>" />
-										<input type="checkbox" name="login_user_field_disabled" id="login_user_field"
-															value="1" checked="checked" disabled="disabled" />
-										<?php
-									} else {
-										?>
-										<input type="checkbox" name="login_user_field" id="login_user_field"
-																value="1" <?php echo checked('1', $gallery->getUserLogonField()); ?> />
-										<?php
-									}
-									echo gettext("enable user name login field");
-									?>
-								</label>
-							</p>
-							<?php
-						} else {
-							?>
-							<input type="hidden" name="login_user_field" id="login_user_field"	value="<?php echo $gallery->getUserLogonField(); ?>" />
-							<?php
-						}
-						?>
 						<p>
 							<label>
 								<input type="checkbox" name="thumb_select_images" id="thumb_select_images"
 										value="1" <?php echo checked('1', $gallery->getThumbSelectImages()); ?> />
 								<?php echo gettext("visual thumb selection"); ?>
+							</label>
+						</p>
+						<p>
+							<label>
+								<input type="checkbox" name="multilevel_thumb_select_images" id="thumb_select_images"
+										value="1" <?php echo checked('1', $gallery->getSecondLevelThumbs()); ?> />
+								<?php echo gettext("show subalbum thumbs"); ?>
 							</label>
 						</p>
 						<p>
@@ -1184,20 +1198,27 @@ if ($subtab == 'gallery' && zp_loggedin(OPTIONS_RIGHTS)) {
 						</p>
 					</td>
 					<td>
+						<p><?php  echo gettext("<a href=\"javascript:toggle('albumpub');\" >Details</a> for <em>publish albums by default</em>" ); ?></p>
+						<div id="albumpub" style="display: none">
+							<p><?php echo gettext("This sets the default behavior for when Zenphoto discovers an album. If checked, the album will be published, if unchecked it will be unpublished.") ?></p>
+						</div>
+						<p><?php  echo gettext("<a href=\"javascript:toggle('imagepub');\" >Details</a> for <em>publish images by default</em>" ); ?></p>
+						<div id="imagepub" style="display: none">
+							<p><?php echo gettext("This sets the default behavior for when Zenphoto discovers an image. If checked, the image will be published, if unchecked it will be unpublished.") ?></p>
+						</div>
 						<p><?php  echo gettext("<a href=\"javascript:toggle('albumdate');\" >Details</a> for <em>use latest image date as album date</em>" ); ?></p>
 						<div id="albumdate" style="display: none">
 							<p><?php echo gettext("If you wish your album date to reflect the date of the latest image uploaded set this option. Otherwise the date will be set initially to the date the album was created.") ?></p>
 						</div>
 
-						<p><?php  echo gettext("<a href=\"javascript:toggle('username');\" >Details</a> for <em>enable user name login field</em>" ); ?></p>
-						<div id="username" style="display: none">
-						<p><?php echo gettext("This option places a field on the gallery (search, album) login form for entering a user name. This is necessary if you have set guest login user names. It is also useful to allow Admin users to log in on these pages rather than at the Admin login."); ?></p>
-						<p class="notebox"><?php echo gettext("<strong>Note:</strong> this field is required (and will be set) if any guest credentials require a user name."); ?></p>
-						</div>
-
 						<p><?php  echo gettext("<a href=\"javascript:toggle('visualthumb');\" >Details</a> for <em>visual thumb selection</em>" ); ?></p>
 						<div id="visualthumb" style="display: none">
 						<p><?php echo gettext("Setting this option places thumbnails in the album thumbnail selection list (the dropdown list on each album's edit page). In Firefox the dropdown shows the thumbs, but in IE and Safari only the names are displayed (even if the thumbs are loaded!). In albums with many images loading these thumbs takes much time and is unnecessary when the browser won't display them. Uncheck this option and the images will not be loaded. "); ?></p>
+						</div>
+
+						<p><?php  echo gettext("<a href=\"javascript:toggle('multithumb');\" >Details</a> for <em>subalbum thumb selection</em>" ); ?></p>
+						<div id="multithumb" style="display: none">
+						<p><?php echo gettext("Setting this option allows selecting images from subalbums as well as from the album. Naturally populating these images adds overhead. If your album edit tabs load too slowly, do not select this option."); ?></p>
 						</div>
 
 						<p><?php  echo gettext("<a href=\"javascript:toggle('persistentarchive');\" >Details</a> for <em>enable persistent archive</em>" ); ?></p>
@@ -1269,7 +1290,7 @@ if ($subtab == 'search' && zp_loggedin(OPTIONS_RIGHTS)) {
 			<?php XSRFToken('saveoptions');?>
 			<input	type="hidden" name="savesearchoptions" value="yes" />
 			<input	type="hidden" name="password_enabled" id="password_enabled" value="0" />
-			<table class="bordered">
+			<table class="bordered  options">
 				<tr>
 					<td colspan="3">
 					<p class="buttons">
@@ -1279,7 +1300,7 @@ if ($subtab == 'search' && zp_loggedin(OPTIONS_RIGHTS)) {
 					</td>
 				</tr>
 				<?php
-				if (GALLERY_SECURITY != 'private') {
+				if (GALLERY_SECURITY == 'public') {
 					?>
 					<tr class="passwordextrashow">
 						<td width="175" style="background-color: #ECF1F2;">
@@ -1299,16 +1320,7 @@ if ($subtab == 'search' && zp_loggedin(OPTIONS_RIGHTS)) {
 							} else {
 								$x = '          ';
 								?>
-									<script type="text/javascript">
-								function resetPass() {
-									$('#user_name').val('');
-									$('#pass').val('');
-									$('#pass_2').val('');
-									$('.hint').val('');
-									toggle_passwords('',true);
-								}
-							</script>
-							<a onclick="resetPass();" title="<?php echo gettext('clear password'); ?>"><img src="images/lock.png" /></a>
+							<a onclick="resetPass('');" title="<?php echo gettext('clear password'); ?>"><img src="images/lock.png" /></a>
 						<?php
 							}
 							?>
@@ -1357,14 +1369,29 @@ if ($subtab == 'search' && zp_loggedin(OPTIONS_RIGHTS)) {
 																				array('type'=>'radio', 'display'=>gettext('exact'),'name'=>'tag_match', 'value'=>1, 'checked'=>0)));
 					$extra['tags'][(int) (getOption('exact_tag_match') && true)]['checked'] = 1;
 					$set_fields = $engine->allowedSearchFields();
+					$fields = array_diff($fields, $set_fields);
 					?>
+					<script>
+						$(function() {
+							$("#resizable").resizable({
+										maxWidth: 350,
+										minWidth: 350, minHeight: 120,
+										resize: function(event, ui) {
+																			$('#searchchecklist').height($('#resizable').height());
+																		 }
+							});
+						});
+					</script>
 					<td>
 						<?php echo gettext('Fields list:'); ?>
-						<ul class="searchchecklist">
+						<div id="resizable">
+						<ul class="searchchecklist" id="searchchecklist">
 							<?php
-							generateUnorderedListFromArray($set_fields, $fields, 'SEARCH_', false, true, true, NULL, $extra);
+							generateUnorderedListFromArray($set_fields, $set_fields, 'SEARCH_', false, true, true, NULL, $extra);
+							generateUnorderedListFromArray(array(), $fields, 'SEARCH_', false, true, true, NULL, $extra);
 							?>
 						</ul>
+						</div>
 						<br />
 						<?php echo gettext('Treat spaces as')?>
 						<?php generateRadiobuttonsFromArray(getOption('search_space_is'),array(gettext('<em>space</em>')=>'',gettext('<em>OR</em>')=>'OR',gettext('<em>AND</em>')=>'AND'),'search_space_is',false,false); ?>
@@ -1398,15 +1425,23 @@ if ($subtab == 'search' && zp_loggedin(OPTIONS_RIGHTS)) {
 							</p>
 							<?php
 						}
-					?>
+						?>
 					</td>
 					<td>
-						<p><?php echo gettext('Search behavior settings.') ?></p>
 						<p><?php echo gettext("<em>Field list</em> is the set of fields on which searches may be performed."); ?></p>
 						<p><?php echo gettext("Search does partial matches on all fields selected with the possible exception of <em>Tags</em>. This means that if the field contains the search criteria anywhere within it a result will be returned. If <em>exact</em> is selected for <em>Tags</em> then the search criteria must exactly match the tag for a result to be returned.") ?></p>
 						<p><?php echo gettext('Setting <code>Treat spaces as</code> to <em>OR</em> will cause search to trigger on any of the words in a string separated by spaces. Setting it to <em>AND</em> will cause the search to trigger only when all strings are present. Leaving the option unchecked will treat the whole string as a search target.') ?></p>
 						<p><?php echo gettext('Setting <code>Do not return <em>{item}</em> matches</code> will cause search to ignore <em>{items}</em> when looking for matches.') ?></p>
 					</td>
+					<tr>
+						<td><?php echo gettext('Cache expiry'); ?></td>
+						<td>
+							<?php printf(gettext('Redo search after %s minutes.'), '<input type="textbox" size="4" name="search_cache_duration" value="'.getOption('search_cache_duration').'" />'); ?>
+						</td>
+						<td>
+							<?php echo gettext('Search will remember the results of particular searches so that it can quickly serve multiple pages, etc. Over time this remembered result can become obsolete, so it should be refreshed. This option lets you decide how long before a search will be considered obsolete and thus re-executed. Setting the option to <em>zero</em> disables caching of searches.');?>
+						</td>
+					</tr>
 				</tr>
 				<tr>
 					<td colspan="3">
@@ -1429,7 +1464,7 @@ if ($subtab == 'rss' && zp_loggedin(OPTIONS_RIGHTS)) {
 		<form action="?action=saveoptions" method="post" autocomplete="off">
 		<?php XSRFToken('saveoptions');?>
 		<input	type="hidden" name="saverssoptions" value="yes" />
-	<table class="bordered">
+	<table class="bordered options">
 		<tr>
 			<td colspan="3">
 			<p class="buttons">
@@ -1534,6 +1569,15 @@ if ($subtab == 'rss' && zp_loggedin(OPTIONS_RIGHTS)) {
 			<td><?php echo gettext("Check if you want to store the hitcount on RSS feeds."); ?></td>
 		</tr>
 		<tr>
+			<td><?php echo gettext("RSS title"); ?></td>
+			<td>
+				<label for="feed_title1"><input type="radio" name="feed_title" id="feed_title1" value="gallery" <?php echo checked('gallery', getOption('feed_title')); ?> /><?php echo gettext('Gallery title'); ?></label>
+				<label for="feed_title2"><input type="radio" name="feed_title" id="feed_title2" value="website" <?php echo checked('website', getOption('feed_title')); ?> /><?php echo gettext('Website title'); ?></label>
+				<label for="feed_title3"><input type="radio" name="feed_title" id="feed_title3" value="both" <?php echo checked('both', getOption('feed_title')); ?> /><?php echo gettext('Both'); ?></label>
+			</td>
+			<td><?php echo gettext("Select what you want to use as the main RSS feed (channel) title. 'Both' means Website title followed by Gallery title"); ?></td>
+		</tr>
+		<tr>
 			<td colspan="3">
 			<p class="buttons">
 			<button type="submit" value="<?php echo gettext('Apply') ?>" title="<?php echo gettext("Apply"); ?>"><img src="images/pass.png" alt="" /><strong><?php echo gettext("Apply"); ?></strong></button>
@@ -1570,7 +1614,7 @@ if ($subtab == 'image' && zp_loggedin(OPTIONS_RIGHTS)) {
 	<?php echo gettext('See also the <a href="?tab=theme">Theme Options</a> tab for theme specific image options.'); ?>
 	</p>
 
-	<table class="bordered">
+	<table class="bordered options">
 		<tr>
 			<td colspan="3">
 				<p class="buttons">
@@ -1723,6 +1767,28 @@ if ($subtab == 'image' && zp_loggedin(OPTIONS_RIGHTS)) {
 			</td>
 		</tr>
 		<tr>
+			<td><?php  echo gettext('Use embedded thumbnail'); ?></td>
+			<?php
+			if (function_exists('exif_thumbnail')) {
+				$disabled = '';
+			} else {
+				$disabled = ' disabled="disabled"';
+				setOption('use_embedded_thumb', 0);
+			}
+			?>
+			<td><input type="checkbox" name="use_embedded_thumb" value="1" <?php echo checked('1', getOption('use_embedded_thumb')); ?><?php echo $disabled; ?> /></td>
+			<td>
+				<p><?php echo gettext('If set, Zenphoto will use the thumbnail imbedded in the image when creating a cached image that is equal or smaller in size. Note: the quality of this image varies by camera and its orientation may not match the master image.'); ?></p>
+				<?php
+					if ($disabled) {
+					?>
+					<p class="notebox"><?php echo gettext('The PHP EXIF extension is required for this option.')?></p>
+					<?php
+					}
+				?>
+			</td>
+		</tr>
+		<tr>
 			<td><?php echo gettext("Allow upscale:"); ?></td>
 			<td><input type="checkbox" name="image_allow_upscale" value="1" <?php echo checked('1', getOption('image_allow_upscale')); ?> /></td>
 			<td><?php echo gettext("Allow images to be scaled up to the requested size. This could result in loss of quality, so it's off by default."); ?></td>
@@ -1820,15 +1886,15 @@ if ($subtab == 'image' && zp_loggedin(OPTIONS_RIGHTS)) {
 					$current = getOption($opt);
 					?>
 					<tr>
-						<td class="image_option_tablerow"><?php	echo gettext($plugin); ?> <?php echo gettext('thumbnails'); ?> </td>
+						<td class="image_option_tablerow"><?php	echo gettext($plugin); ?> <?php echo gettext('thumbnails'); if ($plugin != 'Image') echo ' *'; ?> </td>
 						<td class="image_option_tablerow">
 							<select id="<?php echo $opt; ?>" name="<?php echo $opt; ?>">
-							<option value="" <?php if (empty($current)) echo ' selected="selected"' ?> style="background-color:LightGray"><?php echo gettext('image thumb'); ?></option>
+							<option value="" <?php if (empty($current)) echo ' selected="selected"' ?> style="background-color:LightGray"><?php if ($plugin == 'Image') echo gettext('none'); else echo gettext('image thumb')?></option>
 							<?php
 							$watermarks = getWatermarks();
 							generateListFromArray(array($current), $watermarks, false, false);
 							?>
-							</select><?php if ($plugin != 'Image') echo ' *'; ?>
+							</select>
 						</td>
 					</tr>
 					<?php
@@ -1884,7 +1950,7 @@ if ($subtab == 'image' && zp_loggedin(OPTIONS_RIGHTS)) {
 
 				<input	type="hidden" name="password_enabled" id="password_enabled" value="0" />
 				<?php
-				if (GALLERY_SECURITY != 'private') {
+				if (GALLERY_SECURITY == 'public') {
 					?>
 					<br clear="all" />
 					<table class="compact">
@@ -1904,16 +1970,7 @@ if ($subtab == 'image' && zp_loggedin(OPTIONS_RIGHTS)) {
 								} else {
 									$x = '          ';
 									?>
-								<script type="text/javascript">
-									function resetPass() {
-										$('#user_name').val('');
-										$('#pass').val('');
-										$('#pass_2').val('');
-										$('.hint').val('');
-										toggle_passwords('',true);
-									}
-								</script>
-							<a onclick="resetPass();" title="<?php echo gettext('clear password'); ?>"><img src="images/lock.png" /></a>
+							<a onclick="resetPass('');" title="<?php echo gettext('clear password'); ?>"><img src="images/lock.png" /></a>
 							<?php
 								}
 								?>
@@ -1977,23 +2034,61 @@ if ($subtab == 'image' && zp_loggedin(OPTIONS_RIGHTS)) {
 			</td>
 			<td><?php echo gettext("Substitute a <em>lock</em> image for thumbnails of password protected albums when the viewer has not supplied the password. If your theme supplies an <code>images/err-passwordprotected.png</code> image, it will be shown. Otherwise the zenphoto default lock image is displayed."); ?></td>
 		</tr>
+		<script>
+		$(function() {
+			$("#resizable").resizable({
+						maxWidth: 350,
+						minWidth: 350, minHeight: 120,
+						resize: function(event, ui) {
+															$('#metadatalist').height($('#resizable').height());
+														 }
+			});
+		});
+		</script>
 		<tr>
-			<td><?php echo gettext("EXIF display"); ?></td>
+			<td><?php echo gettext("Metadata"); ?></td>
 			<td>
-			<ul class="searchchecklist">
-			<?php
-			$exifstuff = sortMultiArray($_zp_exifvars,2,false);
-			foreach ($exifstuff as $key=>$item) {
-				echo '<li><label><input id="'.$key.'" name="'.$key.'" type="checkbox"';
-				if ($item[3]) {
-					echo ' checked="checked" ';
-				}
-				echo ' value="1"  /> ' . $item[2] . "</label></li>"."\n";
-			}
-			?>
-			</ul>
+				<div id="resizable">
+					<ul id="metadatalist" class="searchchecklist">
+						<?php
+						$exifstuff = sortMultiArray($_zp_exifvars,2,false);
+						foreach ($exifstuff as $key=>$item) {
+							$checked_show = $checked_hide = $checked_disabled = '';
+							if (!$item[5]) {
+								$checked_disabled = ' checked="checked"';
+							} else {
+								if ($item[3]) {
+									$checked_show = ' checked="checked"';
+								} else {
+									$checked_hide = ' checked="checked"';
+								}
+							}
+							?>
+							<li>
+								<label><input id="<?php echo $key; ?>_show" name="<?php echo $key; ?>" type="radio"<?php echo $checked_show?> value="1" /><img src ="images/accept.png" alt="<?php echo gettext('show'); ?>" /></label>
+								<label><input id="<?php echo $key; ?>_hide" name="<?php echo $key; ?>" type="radio"<?php echo $checked_hide?> value="0" /><img src ="images/reset1.png" alt="<?php echo gettext('hide'); ?>" /></label>
+								<label><input id="<?php echo $key; ?>_disable" name="<?php echo $key; ?>" type="radio"<?php echo $checked_disabled?> value="2" /><img src ="images/fail.png" alt="<?php echo gettext('disabled'); ?>" /></label>
+								<?php echo $item[2]; ?>&nbsp;&nbsp;&nbsp;
+							</li>
+							<?php
+						}
+						?>
+					</ul>
+				</div>
 			</td>
-			<td><?php echo gettext("Check those EXIF fields you wish displayed in image EXIF information."); ?></td>
+			<td>
+				<p>
+				<?php echo gettext("Select how image metadata fields are handled."); ?>
+				<ul style="list-style: none;">
+					<li><img src ="images/accept.png" alt="<?php echo gettext('show'); ?>" /><?php echo gettext('Show the field'); ?></li>
+					<li><img src ="images/reset1.png" alt="<?php echo gettext('show'); ?>" /><?php echo gettext('Hide the field'); ?></li>
+					<li><img src ="images/fail.png" alt="<?php echo gettext('show'); ?>" /><?php echo gettext('Do not process the field'); ?></li>
+				</ul>
+				</p>
+				<p>
+				<?php echo gettext('Hint: you can drag down the <em>drag handle</em> in the lower right corner to show more selections.')?>
+				</p>
+			</td>
 		</tr>
 		<?php
 		$sets = array_merge($_zp_UTF8->iconv_sets, $_zp_UTF8->mb_sets);
@@ -2052,7 +2147,7 @@ if ($subtab == 'comments' && zp_loggedin(OPTIONS_RIGHTS)) {
 	<form action="?action=saveoptions" method="post" autocomplete="off">
 		<?php XSRFToken('saveoptions');?>
 	<input 	type="hidden" name="savecommentoptions" value="yes" />
-	<table class="bordered">
+	<table class="bordered options">
 		<tr>
 			<td colspan="3">
 				<p class="buttons">
@@ -2236,7 +2331,7 @@ if ($subtab=='theme' && zp_loggedin(THEMES_RIGHTS)) {
 		<input type="hidden" name="savethemeoptions" value="yes" />
 		<input type="hidden" name="optiontheme" value="<?php echo html_encode($optiontheme); ?>" />
 		<input type="hidden" name="old_themealbum" value="<?php echo pathurlencode($alb); ?>" />
-		<table class='bordered'>
+		<table class='bordered options'>
 
 		<?php
 		if (count($themelist) == 0) {
@@ -2629,7 +2724,7 @@ if ($subtab == 'plugin' && zp_loggedin(ADMIN_RIGHTS)) {
 				<!-- <?php echo $extension; ?> -->
 				<tr>
 					<td style="padding: 0;margin:0" colspan="3">
-						<table class="bordered" style="border: 0" id="plugin-<?php echo $extension; ?>">
+						<table class="bordered options" style="border: 0" id="plugin-<?php echo $extension; ?>">
 							<tr>
 							<?php
 							if (isset($_GET['show-'.$extension])) {
@@ -2642,7 +2737,7 @@ if ($subtab == 'plugin' && zp_loggedin(ADMIN_RIGHTS)) {
 								$v= 0;
 							}
 							?>
-							<th colspan="3" style="text-align:left">
+							<th  colspan="3" style="text-align:left">
 								<a name="<?php echo $extension; ?>" ></a>
 								<input type="hidden" name="show-<?php echo $extension;?>" id="show-<?php echo $extension;?>" value="<?php echo $v; ?>" />
 								<span style="display:<?php echo $show_show; ?>;" class="pluginextrashow">
@@ -2706,7 +2801,7 @@ if ($subtab == 'plugin' && zp_loggedin(ADMIN_RIGHTS)) {
 			}
 			?>
 		</form>
-		<script language="javascript" type="text/javascript">
+		<script type="text/javascript">
 			// <!-- <![CDATA[
 			function setShow(v) {
 				<?php
@@ -2730,7 +2825,7 @@ if ($subtab == 'security' && zp_loggedin(ADMIN_RIGHTS)) {
 		<form action="?action=saveoptions" method="post" autocomplete="off">
 			<?php XSRFToken('saveoptions');?>
 			<input type="hidden" name="savesecurityoptions" value="yes" />
-			<table class="bordered">
+			<table class="bordered options">
 				<tr>
 					<td colspan="3">
 						<p class="buttons">
@@ -2771,14 +2866,78 @@ if ($subtab == 'security' && zp_loggedin(ADMIN_RIGHTS)) {
 					</td>
 					<td><?php echo gettext('Select the <em>CAPTCHA</em> generator to be used by Zenphoto.'); ?></td>
 				</tr>
+					<?php customOptions($_zp_captcha, "&nbsp;&nbsp;&nbsp;-&nbsp;"); ?>
 				<tr>
 					<td width="175"><?php echo gettext('Obscure cache filenames'); ?></td>
 					<td width="350">
-						<input type="checkbox" name="obfuscate_cache" id="obfuscate_cache" value="1" <?php echo checked(1, getOption('obfuscate_cache')); ?> />
+						<label><input type="checkbox" name="obfuscate_cache" id="obfuscate_cache" value="1" <?php echo checked(1, getOption('obfuscate_cache')); ?> /><?php echo gettext('enable'); ?></label>
 					</td>
-					<td><?php echo gettext('Check to cause the filename of cached items to be obscured. This makes it difficult for someone to "guess" the name in a URL.'); ?></td>
+					<td><?php echo gettext('Cause the filename of cached items to be obscured. This makes it difficult for someone to "guess" the name in a URL.'); ?></td>
 				</tr>
-				<?php customOptions($_zp_captcha, "&nbsp;&nbsp;&nbsp;-&nbsp;"); ?>
+				<tr>
+					<td><?php echo gettext('Cookie security')?></td>
+					<td>
+						<label><input type="checkbox" name="IP_tied_cookies" value="1" <?php echo checked(1, getOption('IP_tied_cookies')); ?> /><?php echo gettext('enable'); ?></label>
+					</td>
+					<td>
+						<?php echo gettext('Tie cookies to the IP address of the browser.'); ?>
+						<p class="notebox">
+						<?php
+						if (!getOption('IP_tied_cookies')) {
+							echo ' '.gettext('<strong>Note</strong>: If your browser does not present a consistant IP address during a session you may not be able to log into your site when this option is enabled.').' ';
+						}
+						echo gettext(' You <strong>WILL</strong> have to login after changing this option.');
+						if (!getOption('IP_tied_cookies')) {
+							echo ' '.gettext('If you set the option and cannot login, you will have to restore your database to a point when the option was not set, so you might want to backup your database first.');
+						}
+						?>
+						</p>
+					</td>
+				</tr>
+					<?php
+					if (GALLERY_SECURITY =='public') {
+						$disable = $gallery->getUser() || getOption('search_user') || getOption('protected_image_user') || getOption('downloadList_user');
+						?>
+						<div class="public_gallery"<?php if (GALLERY_SECURITY != 'public') echo ' style="display:none"'; ?>>
+							<tr>
+							<td><?php echo gettext('User name'); ?></td>
+							<td>
+								<label>
+									<?php
+									if ($disable) {
+										?>
+										<input type="hidden" name="login_user_field" value="1" />
+										<input type="checkbox" name="login_user_field_disabled" id="login_user_field"
+															value="1" checked="checked" disabled="disabled" />
+										<?php
+									} else {
+										?>
+										<input type="checkbox" name="login_user_field" id="login_user_field"
+																value="1" <?php echo checked('1', $gallery->getUserLogonField()); ?> />
+										<?php
+									}
+									echo gettext("enable");
+									?>
+								</label>
+								</td>
+								<td>
+									<?php
+									echo gettext('If enabled guest logon forms will include the <em>User Name</em> field. This allows <em>Zenphoto</em> users to logon from the form.');
+									if ($disable) {
+										echo '<p class="notebox">'.gettext('<strong>Note</strong>: This field is required because one or more of the <em>Guest</em> passwords has a user name associated.').'</p>';
+									}
+									?>
+								</td>
+							</tr>
+						</div>
+						<?php
+					} else {
+						?>
+						<input type="hidden" name="login_user_field" id="login_user_field"	value="<?php echo $gallery->getUserLogonField(); ?>" />
+						<?php
+					}
+					?>
+				</tr>
 				<tr>
 					<?php
 					$supportedOptions = $_zp_authority->getOptionsSupported();

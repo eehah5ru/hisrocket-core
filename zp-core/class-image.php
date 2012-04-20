@@ -88,9 +88,9 @@ class _Image extends MediaObject {
 	var $localpath;     			// Latin1 full SERVER path to the original image.
 	var $displayname;   			// $filename with the extension stripped off.
 	var $album;         			// An album object for the album containing this image.
-	var $index;         			// The index of the current image in the album array.
-	var $sortorder;     			// The position that this image should be shown in the album
-	var $filemtime;     			// Last modified time of this image
+	protected $index;         			// The index of the current image in the album array.
+	protected $sortorder;     			// The position that this image should be shown in the album
+	protected $filemtime;     			// Last modified time of this image
 	var $sidecars = array();	// keeps the list of suffixes associated with this image
 	var $manage_rights = MANAGE_ALL_ALBUM_RIGHTS;
 	var $manage_some_rights = ALBUM_RIGHTS;
@@ -129,15 +129,28 @@ class _Image extends MediaObject {
 		// This is where the magic happens...
 		$album_name = $album->name;
 		$new = parent::PersistentObject('images', array('filename'=>$filename, 'albumid'=>$this->album->id), 'filename', false, empty($album_name));
-		$mtime = filemtime($this->localpath);
-		if ($new || ($mtime != $this->get('mtime'))) {
-			$this->setShow(getOption('image_publish'));
-			$this->set('mtime', $mtime);
+		if ($this->filemtime != $this->get('mtime')) {
+			$this->set('mtime', $this->filemtime);
 			$this->updateMetaData();			// extract info from image
 			$this->updateDimensions();		// deal with rotation issues
 			$this->save();
-			if ($new) zp_apply_filter('new_image', $this);
 		}
+		if ($new) {
+			$this->updateMetaData();			// extract info from image
+			$this->save();
+			zp_apply_filter('new_image', $this);
+		}
+	}
+
+	/**
+	 * (non-PHPdoc)
+	 * @see PersistentObject::setDefaults()
+	 */
+	protected function setDefaults() {
+		$_zp_gallery = new Gallery();
+		$this->setShow($_zp_gallery->getImagePublish());
+		$this->set('mtime', $this->filemtime);
+		$this->updateDimensions();		// deal with rotation issues
 	}
 
 	/**
@@ -149,7 +162,7 @@ class _Image extends MediaObject {
 	 * @return bool
 	 *
 	 */
-	function classSetup(&$album, $filename) {
+	protected function classSetup(&$album, $filename) {
 		global $_zp_current_admin_obj;
 		$fileFS = internalToFilesystem($filename);
 		if ($filename != filesystemToInternal($fileFS)) { // image name spoof attempt
@@ -194,7 +207,7 @@ class _Image extends MediaObject {
 	 *
 	 * @return bool
 	 */
-	function fileChanged() {
+	private function fileChanged() {
 		$storedmtime = $this->get('mtime');
 		return (empty($storedmtime) || $this->filemtime > $storedmtime);
 	}
@@ -280,19 +293,21 @@ class _Image extends MediaObject {
 		} else {
 			$localpath = $this->getThumbImageFile();
 		}
-		$xdate = $this->getDateTime();
+		$xdate = false;
 
 		if (!empty($localpath)) { // there is some kind of image to get metadata from
 			$exifraw = read_exif_data_protected($localpath);
 			if (isset($exifraw['ValidEXIFData'])) {
 				$this->set('hasMetadata',1);
 				foreach($_zp_exifvars as $field => $exifvar) {
-					if (isset($exifraw[$exifvar[0]][$exifvar[1]])) {
-						$exif = trim(sanitize($exifraw[$exifvar[0]][$exifvar[1]],1));
-						$this->set($field, $exif);
-					} else if (isset($exifraw[$exifvar[0]]['MakerNote'][$exifvar[1]])) {
-						$exif = trim(sanitize($exifraw[$exifvar[0]]['MakerNote'][$exifvar[1]],1));
-						$this->set($field, $exif);
+					if ($exifvar[5]) {	// enabled field
+						if (isset($exifraw[$exifvar[0]][$exifvar[1]])) {
+							$exif = trim(sanitize($exifraw[$exifvar[0]][$exifvar[1]],1));
+							$this->set($field, $exif);
+						} else if (isset($exifraw[$exifvar[0]]['MakerNote'][$exifvar[1]])) {
+							$exif = trim(sanitize($exifraw[$exifvar[0]]['MakerNote'][$exifvar[1]],1));
+							$this->set($field, $exif);
+						}
 					}
 				}
 			}
@@ -317,9 +332,11 @@ class _Image extends MediaObject {
 					}
 					// Extract IPTC fields of interest
 					foreach ($_zp_exifvars as $field=>$exifvar) {
-						if ($exifvar[0]=='IPTC') {
-							$datum = $this->getIPTCTag($IPTCtags[$exifvar[1]], $iptc);
-							$this->set($field, $this->prepIPTCString($datum, $characterset));
+						if ($exifvar[5]) {
+							if ($exifvar[0]=='IPTC') {	// enabled field
+								$datum = $this->getIPTCTag($IPTCtags[$exifvar[1]], $iptc);
+								$this->set($field, $this->prepIPTCString($datum, $characterset));
+							}
 						}
 					}
 					/* iptc keywords (tags) */
@@ -484,7 +501,7 @@ class _Image extends MediaObject {
 	 * @param string $characterset the internal encoding of the data
 	 * @return string
 	 */
-	function prepIPTCString($iptcstring, $characterset) {
+	private function prepIPTCString($iptcstring, $characterset) {
 		global $_zp_UTF8;
 		// Remove null byte at the end of the string if it exists.
 		if (substr($iptcstring, -1) === 0x0) {
@@ -670,6 +687,7 @@ class _Image extends MediaObject {
 	 */
 
 	function remove() {
+		$result = false;
 		if (parent::remove()) {
 			$result = true;
 			$filestodelete = safe_glob(substr($this->localpath,0,strrpos($this->localpath,'.')).'.*');
@@ -680,9 +698,9 @@ class _Image extends MediaObject {
 				query("DELETE FROM " . prefix('obj_to_tag') . "WHERE `type`='images' AND `objectid`=" . $this->id);
 				query("DELETE FROM ".prefix('comments') . "WHERE `type` ='images' AND `ownerid`=" . $this->id);
 			}
-			return $result;
 		}
-		return false;
+		clearstatcache();
+		return $result;
 	}
 
 	/**
@@ -1063,14 +1081,14 @@ class _Image extends MediaObject {
 	}
 
 	/**
-	 * returns true if user is allowed to see the album
+	 * returns true if user is allowed to see the image
 	 */
 	function checkAccess(&$hint=NULL, &$show=NULL) {
 		$album = $this->getAlbum();
-		if ($album->isMyItem($this->view_rights)) {
-			return true;
+		if ($album->isMyItem(LIST_RIGHTS)) {
+			return $this->getShow() || $album->albumSubRights() & (MANAGED_OBJECT_RIGHTS_EDIT | MANAGED_OBJECT_RIGHTS_VIEW);
 		}
-		return $album->checkforGuest($hint=NULL, $show=NULL);
+		return $album->checkforGuest($hint, $show) && $this->getShow() && $album->getShow();
 	}
 
 	/**

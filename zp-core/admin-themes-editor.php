@@ -8,7 +8,6 @@
 // force UTF-8 �
 
 define('OFFSET_PATH', 1);
-require_once(dirname(__FILE__).'/admin-functions.php');
 require_once(dirname(__FILE__).'/admin-globals.php');
 
 admin_securityChecks(THEMES_RIGHTS, currentRelativeURL(__FILE__));
@@ -99,6 +98,13 @@ if ( $file_to_edit ) {
 	echo '</div>';
 } ?>
 
+<p class="buttons">
+	<a title="<?php echo gettext('Back to the theme list'); ?>" href="<?php echo WEBPATH.'/'.ZENFOLDER; ?>/admin-themes.php">
+		<img	src="images/arrow_left_blue_round.png" alt="" />
+		<strong><?php echo gettext("Back"); ?></strong>
+	</a>
+</p>
+<br clear="all">
 <div id="theme-editor">
 
 	<div id="files">

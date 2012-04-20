@@ -8,9 +8,9 @@
  * @package plugins
  */
 $plugin_is_filter = 9|CLASS_PLUGIN;
-$plugin_description = sprintf(gettext("Logs all attempts to login to or illegally access the admin pages. Log is kept in <em>security_log.txt</em> in the %s folder."),DATA_FOLDER);
+$plugin_description = sprintf(gettext("Logs all attempts to login to or illegally access the admin pages. Log is kept in <em>security.log</em> in the %s folder."),DATA_FOLDER);
 $plugin_author = "Stephen Billard (sbillard)";
-$plugin_version = '1.4.1';
+$plugin_version = '1.4.2';
 $option_interface = 'security_logger';
 
 if (getOption('logger_log_admin')) {
@@ -73,7 +73,7 @@ class security_logger {
  * @param string $authority kind of login
  * @param string $addl more info
  */
-function security_logger_loginLogger($success, $user, $name, $ip, $action, $authority, $addl=NULL) {
+function security_logger_Logger($success, $user, $name, $ip, $action, $authority, $addl=NULL) {
 	global $_zp_authority;
 	$admin = $_zp_authority->getAnAdmin(array('`user`=' => $_zp_authority->master_user, '`valid`=' => 1));
 	if ($admin) {
@@ -94,20 +94,20 @@ function security_logger_loginLogger($success, $user, $name, $ip, $action, $auth
 		case 'download_log':
 			$type = gettext('Log downloaded');
 			break;
-		case 'install':
-			$type = gettext('Installed');
+		case 'setup_install':
+			$type = gettext('Install');
 			$addl = gettext('version').' '.ZENPHOTO_VERSION.'['.ZENPHOTO_RELEASE."]";
 			break;
-		case 'delete':
-			$type = gettext('Removed setup file');
+		case 'setup_delete':
+			$type = gettext('Remove setup files');
 			break;
-		case 'new':
+		case 'user_new':
 			$type = gettext('Request add user');
 			break;
-		case 'update':
+		case 'user_update':
 			$type = gettext('Request update user');
 			break;
-		case 'delete':
+		case 'user_delete':
 			$type = gettext('Request delete user');
 			break;
 		case 'XSRF access blocked':
@@ -129,7 +129,7 @@ function security_logger_loginLogger($success, $user, $name, $ip, $action, $auth
 			$type = $action;
 	}
 
-	$file = dirname(dirname(dirname(__FILE__))).'/'.DATA_FOLDER . '/security_log.txt';
+	$file = dirname(dirname(dirname(__FILE__))).'/'.DATA_FOLDER . '/security.log';
 	$preexists = file_exists($file) && filesize($file) > 0;
 	$f = fopen($file, 'a');
 	if($f) {
@@ -210,7 +210,7 @@ function security_logger_adminLoginLogger($success, $user, $pass, $auth='zp_admi
 			$name = $admin->getName();
 		}
 	}
-	security_logger_loginLogger($success, $user, $name, getUserIP(), 'Back-end', $auth, $pass);
+	security_logger_Logger($success, $user, $name, getUserIP(), 'Back-end', $auth, $pass);
 	return $success;
 }
 
@@ -249,16 +249,15 @@ function security_logger_guestLoginLogger($success, $user, $pass, $athority) {
 			if ($success) return true;
 			break;
 	}
+	$name = '';
 	if ($success) {
 		$admin = $_zp_authority->getAnAdmin(array('`user`=' => $user, '`valid`=' => 1));
 		$pass = '';	// mask it from display
 		if (is_object($admin)) {
 			$name = $admin->getName();
 		}
-	} else {
-		$name = '';
 	}
-	security_logger_loginLogger($success, $user, $name, getUserIP(), 'Front-end', $athority, $pass);
+	security_logger_Logger($success, $user, $name, getUserIP(), 'Front-end', $athority, $pass);
 	return $success;
 }
 
@@ -269,7 +268,7 @@ function security_logger_guestLoginLogger($success, $user, $pass, $athority) {
  */
 function security_logger_adminGate($allow, $page) {
 	list($user,$name) = security_logger_populate_user();
-	security_logger_loginLogger(false, $user, $name, getUserIP(), 'Blocked access', '', $page);
+	security_logger_Logger(false, $user, $name, getUserIP(), 'Blocked access', '', $page);
 	return $allow;
 }
 
@@ -280,7 +279,7 @@ function security_logger_adminGate($allow, $page) {
  */
 function security_logger_adminAlbumGate($allow, $page) {
 	list($user,$name) = security_logger_populate_user();
-	security_logger_loginLogger(false, $user, $name, getUserIP(), 'Blocked album', '', $page);
+	security_logger_Logger(false, $user, $name, getUserIP(), 'Blocked album', '', $page);
 	return $allow;
 }
 
@@ -292,7 +291,7 @@ function security_logger_adminAlbumGate($allow, $page) {
  */
 function security_logger_UserSave($discard, $userobj, $class) {
 	list($user,$name) = security_logger_populate_user();
-	security_logger_loginLogger(true, $user, $name, getUserIP(), $class, 'zp_admin_auth', $userobj->getUser());
+	security_logger_Logger(true, $user, $name, getUserIP(), 'user_'.$class, 'zp_admin_auth', $userobj->getUser());
 	return $discard;
 }
 
@@ -305,7 +304,7 @@ function security_logger_UserSave($discard, $userobj, $class) {
  */
 function security_logger_admin_XSRF_access($discard, $token) {
 	list($user,$name) = security_logger_populate_user();
-	security_logger_loginLogger(false, $user, $name, getUserIP(), 'XSRF access blocked', '', $token);
+	security_logger_Logger(false, $user, $name, getUserIP(), 'XSRF access blocked', '', $token);
 	return false;
 }
 
@@ -317,7 +316,7 @@ function security_logger_admin_XSRF_access($discard, $token) {
  */
 function security_logger_log_action($allow, $log, $action) {
 	list($user,$name) = security_logger_populate_user();
-	security_logger_loginLogger($allow, $user, $name, getUserIP(), $action, 'zp_admin_auth', basename($log));
+	security_logger_Logger($allow, $user, $name, getUserIP(), $action, 'zp_admin_auth', basename($log));
 	return $allow;
 }
 
@@ -329,7 +328,7 @@ function security_logger_log_action($allow, $log, $action) {
  */
 function security_logger_log_setup($success, $action, $txt) {
 	list($user,$name) = security_logger_populate_user();
-	security_logger_loginLogger($success, $user, $name, getUserIP(), $action, 'zp_admin_auth', $txt);
+	security_logger_Logger($success, $user, $name, getUserIP(), 'setup_'.$action, 'zp_admin_auth', $txt);
 	return $success;
 }
 ?>

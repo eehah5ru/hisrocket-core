@@ -86,7 +86,7 @@ function is_Pages() {
 /**
  * Gets the news type of a news item.
  * "news" for a news article or if using the CombiNews feature
- * "flvmovie" (for flv, mp3 and mp4), "image", "3gpmovie" or "quicktime"
+ * "flvmovie" (for flv, fla, mp3, m4a and mp4/m4v), "image", "3gpmovie" or "quicktime"
  *
  * @param obj $newsobj optional news object to check directly outside news context
  * @return string
@@ -137,7 +137,7 @@ function stickyNews($newsobj=NULL) {
  *
  * @param string $type The type to check for
  * 										 "news" for a news article or if using the CombiNews feature
- * 										"flvmovie" (for flv, mp3 and mp4), "image", "3gpmovie" or "quicktime"
+ * 										"flvmovie" (for flv, fla, mp3, m4a and mp4/m4v), "image", "3gpmovie" or "quicktime"
  * @param obj $newsobj optional news object to check directly outside news context
  * @return bool
  */
@@ -199,13 +199,13 @@ function getNumNews($total=false) {
 	global $_zp_zenpage, $_zp_current_zenpage_news, $_zp_current_zenpage_news_restore, $_zp_zenpage_articles, $_zp_gallery, $_zp_current_search;
 	$_zp_zenpage->processExpired('news');
 	if ($total) {
-		return count($_zp_zenpage->getNewsArticles(0));
+		return count($_zp_zenpage->getArticles(0));
 	} else if (in_context(ZP_SEARCH)) {
 		return count($_zp_current_search->getSearchNews());
 	} else if(ZP_COMBINEWS AND !is_NewsCategory() AND !is_NewsArchive()) {
 		return count($_zp_zenpage->getCombiNews(0));
 	} else {
-		return count($_zp_zenpage->getNewsArticles(0));
+		return count($_zp_zenpage->getArticles(0));
 	}
 }
 
@@ -239,7 +239,7 @@ function next_news($sortorder="date", $sortdirection="desc") {
 			if(in_context(ZP_ZENPAGE_NEWS_CATEGORY)) {
 				$_zp_zenpage_articles = $_zp_current_category->getArticles(ZP_ARTICLES_PER_PAGE,NULL,false,$sortorder,$sortdirection);
 			} else {
-				$_zp_zenpage_articles = $_zp_zenpage->getNewsArticles(ZP_ARTICLES_PER_PAGE,NULL,false,$sortorder,$sortdirection);
+				$_zp_zenpage_articles = $_zp_zenpage->getArticles(ZP_ARTICLES_PER_PAGE,NULL,false,$sortorder,$sortdirection);
 			}
 		}
 		while (!empty($_zp_zenpage_articles)) {
@@ -255,6 +255,7 @@ function next_news($sortorder="date", $sortdirection="desc") {
 							case "latestimagesbyalbum-thumbnail":
 							case "latestimagesbyalbum-thumbnail-customcrop":
 							case "latestimagesbyalbum-sizedimage":
+							case "latestimagesbyalbum-sizedimage-maxspace":
 								$_zp_current_zenpage_news = new Album($_zp_gallery,$news['titlelink']);
 								$_zp_current_zenpage_news->set('date', $news['date']); // in this mode this stores the date of the images to group not the album (inconvenient workaround...)
 								break;
@@ -288,6 +289,7 @@ function next_news($sortorder="date", $sortdirection="desc") {
 							case "latestimagesbyalbum-thumbnail":
 							case "latestimagesbyalbum-thumbnail-customcrop":
 							case "latestimagesbyalbum-sizedimage":
+							case "latestimagesbyalbum-sizedimage-maxspace":
 								$_zp_current_zenpage_news = new Album($_zp_gallery,$news['titlelink']);
 								$_zp_current_zenpage_news->set('date', $news['date']); // in this mode this stores the date of the images to group not the album (inconvenient workaround...)
 								break;
@@ -441,26 +443,10 @@ function printNewsTitleLink($before='') {
  */
 function getNewsContent($shorten=false, $shortenindicator=NULL,$readmore=NULL) {
 	global $_zp_flash_player, $_zp_current_image, $_zp_gallery, $_zp_current_zenpage_news, $_zp_page;
-	$newstype = getNewsType();
-	switch($newstype) {
-		case 'news':
-			if (!$_zp_current_zenpage_news->checkAccess()) {
-				return '<p>'.gettext('<em>This article belongs to a protected category.</em>').'</p>';
-			}
-			break;
-		case 'image':
-			$album = getNewsAlbumName();
-			$albumobj = new Album($_zp_gallery,$album);
-			if(!$albumobj->checkAccess()) {
-				return '<p>'.gettext('<em>This entry belongs to a protected album.</em>').'</p>';
-			}
-			break;
-		case 'album':
-			if(!$_zp_current_zenpage_news->checkAccess()) {
-				return '<p>'.gettext('<em>This entry belongs to a protected album.</em>').'</p>';
-			}
-			break;
+	if (!$_zp_current_zenpage_news->checkAccess()) {
+		return '<p>'.gettext('<em>This entry belongs to a protected album.</em>').'</p>';
 	}
+	$newstype = getNewsType();
 	$excerptbreak = false;
 	if(!$shorten && !is_NewsArticle()) {
 		$shorten = ZP_SHORTEN_LENGTH;
@@ -474,6 +460,7 @@ function getNewsContent($shorten=false, $shortenindicator=NULL,$readmore=NULL) {
 	$cropx = ZP_CN_CROPX;
 	$cropy = ZP_CN_CROPY;
 	$mode = ZP_CN_MODE;
+	$headline = '';
 	switch($newstype) {
 		case 'news':
 			$articlecontent = $_zp_current_zenpage_news->getContent();
@@ -484,9 +471,19 @@ function getNewsContent($shorten=false, $shortenindicator=NULL,$readmore=NULL) {
 		case 'image':
 			switch($mode) {
 				case 'latestimages-sizedimage':
+				case 'latestimages-sizedimage-maxspace':
 					if(isImagePhoto($_zp_current_zenpage_news)) {
 						$articlecontent = '<a href="'.html_encode($_zp_current_zenpage_news->getImageLink()).'" title="'.html_encode($_zp_current_zenpage_news->getTitle()).'">';
-						$articlecontent .= '<img src="'.html_encode($_zp_current_zenpage_news->getSizedImage($size)).'" alt="'.html_encode($_zp_current_zenpage_news->getTitle()).'" />';
+						switch($mode) {
+							case 'latestimages-sizedimage':
+								$imagesource = html_encode($_zp_current_zenpage_news->getSizedImage($size));
+								break;
+							case 'latestimages-sizedimage-maxspace':
+								getMaxSpaceContainer($width, $height, $_zp_current_zenpage_news,true);
+								$imagesource = html_encode($_zp_current_zenpage_news->getCustomImage(NULL, $width,$height, $width,$height, NULL, NULL,true));
+								break;
+						}
+						$articlecontent .= '<img src="'.$imagesource.'" alt="'.html_encode($_zp_current_zenpage_news->getTitle()).'" />';
 						$articlecontent .= '</a>';
 					} else if(isImageVideo($_zp_current_zenpage_news)) {
 						$articlecontent .= $_zp_current_zenpage_news->getSizedImage($size);
@@ -518,8 +515,17 @@ function getNewsContent($shorten=false, $shortenindicator=NULL,$readmore=NULL) {
 			$albumthumbobj = $_zp_current_zenpage_news->getAlbumThumbImage();
 			switch($mode) {
 				case 'latestalbums-sizedimage':
+				case 'latestalbums-sizedimage-maxspacce':
 					if(isImagePhoto($albumthumbobj)) {
-						$imgurl = html_encode($albumthumbobj->getSizedImage($size));
+						switch($mode) {
+							case 'latestalbums-sizedimage':
+								$imgurl = html_encode($albumthumbobj->getSizedImage($size));
+								break;
+							case 'latestalbums-sizedimage-maxspace':
+								getMaxSpaceContainer($width, $height, $albumthumbobj,true);
+								$imgurl = html_encode($albumthumbobj->getCustomImage(NULL, $width,$height, $width,$height, NULL, NULL,true));
+								break;
+						}
 					} else {
 						$imgurl = html_encode($albumthumbobj->getCustomImage($size, NULL,NULL, NULL, NULL, NULL, NULL,true));
 					}
@@ -534,6 +540,7 @@ function getNewsContent($shorten=false, $shortenindicator=NULL,$readmore=NULL) {
 				case 'latestimagesbyalbum-thumbnail':
 				case 'latestimagesbyalbum-thumbnail-customcrop':
 				case 'latestimagesbyalbum-sizedimage':
+				case 'latestimagesbyalbum-sizedimage-maxspace':
 					$images = query_full_array("SELECT title, filename FROM ".prefix('images')." AS images WHERE date LIKE '".$_zp_current_zenpage_news->getDateTime()."%' AND albumid = ".$_zp_current_zenpage_news->id." ORDER BY date DESC");
 					foreach($images as $image) {
 						$imageobj = newImage($_zp_current_zenpage_news,$image['filename']);
@@ -546,27 +553,37 @@ function getNewsContent($shorten=false, $shortenindicator=NULL,$readmore=NULL) {
 						$articlecontent .= '<div class="latestimagesbyalbum">'; // entry wrapper
 						switch($mode) {
 							case 'latestimagesbyalbum-thumbnail':
-								if(getOption('combinews-latestimagesbyalbum-imgtitle')) $articlecontent .= '<h4>'.html_encode($imageobj->getTitle()).'</h4>';
-								$articlecontent .= '<a href="'.html_encode($imageobj->getImageLink()).'" title="'.html_encode($imageobj->getTitle()).'"><img src="'.html_encode($imageobj->getThumb()).'" alt="'.html_encode($imageobj->getTitle()).'" /></a>'.$imagedesc;
+								if(getOption('combinews-latestimagesbyalbum-imgtitle')) $headline = '<h4>'.html_encode($imageobj->getTitle()).'</h4>';
+								$articlecontent .= '<a href="'.html_encode($imageobj->getImageLink()).'" title="'.html_encode($imageobj->getTitle()).'"><img src="'.html_encode($imageobj->getThumb()).'" alt="'.html_encode($imageobj->getTitle()).'" /></a>'.$headline.$imagedesc;
 								break;
 							case 'latestimagesbyalbum-thumbnail-customcrop':
-								if(getOption('combinews-latestimagesbyalbum-imgtitle')) $articlecontent .= '<h4>'.html_encode($imageobj->getTitle()).'</h4>';
+								if(getOption('combinews-latestimagesbyalbum-imgtitle')) $headline = '<h4>'.html_encode($imageobj->getTitle()).'</h4>';
 								if(isImagePhoto($imageobj)){
-									$articlecontent .= '<a href="'.html_encode($imageobj->getImageLink()).'" title="'.html_encode($imageobj->getTitle()).'"><img src="'.html_encode($imageobj->getCustomImage(NULL, $width, $height, $cropwidth, $cropheight, $cropx, $cropy)).'" alt="'.html_encode($imageobj->getTitle()).'" /></a>'.$imagedesc;
+									$articlecontent .= '<a href="'.html_encode($imageobj->getImageLink()).'" title="'.html_encode($imageobj->getTitle()).'"><img src="'.html_encode($imageobj->getCustomImage(NULL, $width, $height, $cropwidth, $cropheight, $cropx, $cropy)).'" alt="'.html_encode($imageobj->getTitle()).'" /></a>'.$headline.$imagedesc;
 								} else if(isImageVideo($imageobj)) {
 									$articlecontent .= getNewsVideoContent($imageobj).$imagedesc;
 								} else  {
-									$articlecontent .= '<a href="'.html_encode($imageobj->getImageLink()).'" title="'.html_encode($imageobj->getTitle()).'"><img src="'.html_encode($imageobj->getCustomImage(NULL, $width, $height, $cropwidth, $cropheight, $cropx, $cropy,true)).'" alt="'.html_encode($imageobj->getTitle()).'" /></a>'.$imagedesc;
+									$articlecontent .= '<a href="'.html_encode($imageobj->getImageLink()).'" title="'.html_encode($imageobj->getTitle()).'"><img src="'.html_encode($imageobj->getCustomImage(NULL, $width, $height, $cropwidth, $cropheight, $cropx, $cropy,true)).'" alt="'.html_encode($imageobj->getTitle()).'" /></a>'.$headline.$imagedesc;
 								}
 								break;
 							case 'latestimagesbyalbum-sizedimage':
-								if(getOption('combinews-latestimagesbyalbum-imgtitle')) $articlecontent .= '<h4>'.html_encode($imageobj->getTitle()).'</h4>';
+							case 'latestimagesbyalbum-sizedimage-maxspace':
+								if(getOption('combinews-latestimagesbyalbum-imgtitle')) $headline = '<h4>'.html_encode($imageobj->getTitle()).'</h4>';
 								if(isImagePhoto($imageobj)) {
-									$articlecontent .= '<a href="'.html_encode($imageobj->getImageLink()).'" title="'.html_encode($imageobj->getTitle()).'"><img src="'.pathurlencode($imageobj->getSizedImage($size)).'" alt="'.html_encode($imageobj->getTitle()).'" /></a>'.$imagedesc;
+									switch($mode) {
+										case 'latestimagesbyalbum-sizedimage':
+											$imagesource = pathurlencode($imageobj->getSizedImage($size));
+											break;
+										case 'latestimagesbyalbum-sizedimage-maxspace':
+											getMaxSpaceContainer($width, $height,$imageobj,true);
+											$imagesource = pathurlencode($imageobj->getCustomImage(NULL, $width,$height, $width,$height, NULL, NULL,true));
+											break;
+									}
+									$articlecontent .= '<a href="'.html_encode($imageobj->getImageLink()).'" title="'.html_encode($imageobj->getTitle()).'"><img src="'.$imagesource.'" alt="'.html_encode($imageobj->getTitle()).'" /></a>'.$headline.$imagedesc;
 								} else if(isImageVideo($imageobj)) {
-									$articlecontent .= getNewsVideoContent($imageobj).$imagedesc;
+									$articlecontent .= getNewsVideoContent($imageobj).$headline.$imagedesc;
 								} else {
-									$articlecontent .= '<a href="'.html_encode($imageobj->getImageLink()).'" title="'.html_encode($imageobj->getTitle()).'"><img src="'.html_encode($imageobj->getCustomImage($size, NULL,NULL, NULL, NULL, NULL, NULL,true)).'" alt="'.html_encode($imageobj->getTitle()).'" /></a>'.$imagedesc;
+									$articlecontent .= '<a href="'.html_encode($imageobj->getImageLink()).'" title="'.html_encode($imageobj->getTitle()).'"><img src="'.html_encode($imageobj->getCustomImage($size, NULL,NULL, NULL, NULL, NULL, NULL,true)).'" alt="'.html_encode($imageobj->getTitle()).'" /></a>'.$headline.$imagedesc;
 								}
 								break;
 						} // switch "latest images by album end"
@@ -592,7 +609,7 @@ function getNewsContent($shorten=false, $shortenindicator=NULL,$readmore=NULL) {
  */
 function printNewsContent($shorten=false,$shortenindicator=NULL,$readmore=NULL) {
 	global $_zp_current_zenpage_news, $_zp_page;
-	echo getNewsContent($shorten,$shortenindicator,$readmore);
+	echo html_encodeTagged(getNewsContent($shorten,$shortenindicator,$readmore));
 }
 
 /**
@@ -655,6 +672,9 @@ function getNewsVideoContent($imageobj) {
 		case '.flv':
 		case '.mp3':
 		case '.mp4':
+		case '.fla':
+		case '.m4a':
+		case '.m4v':
 			if (is_null($_zp_flash_player)) {
 				$videocontent = '<img src="' . WEBPATH . '/' . ZENFOLDER . '/images/err-noflashplayer.png" alt="'.gettext('No flash player installed.').'" />';
 			} else {
@@ -736,13 +756,35 @@ function printNewsCustomData() {
 }
 
 /**
- * Gets the author of a news article
+ * Gets the author of a news article (if in Combinews mode for gallery items the owner)
  *
  * @return string
  */
 function getNewsAuthor($fullname=false) {
-	if(is_News() AND is_NewsType("news")) {
-		return getAuthor($fullname);
+	global $_zp_current_zenpage_news,$_zp_authority;
+	if(is_News()) {
+		if(is_NewsType("news")) {
+			return getAuthor($fullname);
+		} else {
+			$authorname = '';
+			$authorid = $_zp_current_zenpage_news->getOwner();
+			if($fullname) {
+				$admins = $_zp_authority->getAdministrators();
+				foreach($admins as $admin) {
+					if($admin['user'] == $authorid) {
+						$authorname = $admin['name'];
+						break;
+					}
+				}
+				if(empty($authorname)) {
+					return $authorid;
+				} else {
+					return $authorname;
+				}
+			} else {
+				return $authorid;
+			}
+		}
 	}
 }
 
@@ -877,7 +919,7 @@ function getNewsCategoryDesc() {
  *
  */
 function printNewsCategoryDesc() {
-	echo getNewsCategoryDesc();
+	echo html_encodeTagged(getNewsCategoryDesc());
 }
 
 /**
@@ -965,14 +1007,15 @@ function printNewsDate() {
  * @param string $monthclass optional class for "month"
  * @param string $activeclass optional class for the currently active archive
  * @param bool $yearsonly If set to true the archive only shows the years with total count (Default false)
+ * @param string $order 'desc' (default) or 'asc' for descending or ascending
  */
-function printNewsArchive($class='archive', $yearclass='year', $monthclass='month', $activeclass="archive-active",$yearsonly=false) {
+function printNewsArchive($class='archive', $yearclass='year', $monthclass='month', $activeclass="archive-active",$yearsonly=false,$order='desc') {
 	global $_zp_zenpage;
 	if (!empty($class)){ $class = "class=\"$class\""; }
 	if (!empty($yearclass)){ $yearclass = "class=\"$yearclass\""; }
 	if (!empty($monthclass)){ $monthclass = "class=\"$monthclass\""; }
 	if (!empty($activeclass)){ $activeclass = "class=\"$activeclass\""; }
-	$datecount = $_zp_zenpage->getAllArticleDates($yearsonly);
+	$datecount = $_zp_zenpage->getAllArticleDates($yearsonly,$order);
 	$lastyear = "";
 	$nr = "";
 	echo "\n<ul $class>\n";
@@ -1099,7 +1142,7 @@ function getLatestNews($number=2,$option='none', $category='') {
 				$catobj = new ZenpageCategory($category);
 				$latest = $catobj->getArticles($number,NULL,true);
 			} else {
-				$latest = $_zp_zenpage->getNewsArticles($number,NULL,true);
+				$latest = $_zp_zenpage->getArticles($number,NULL,true);
 			}
 			$counter = '';
 			$latestnews = array();
@@ -1249,7 +1292,13 @@ function printLatestNews($number=5,$option='with_latest_images', $category='', $
  * @return string
  */
 function getNewsCategoryURL($catlink='') {
-	return rewrite_path(getNewsBaseURL()."/category/".urlencode($catlink),getNewsBaseURL()."&amp;category=".urlencode($catlink),false);
+	global $_zp_zenpage, $_zp_current_category;
+	if(empty($catlink)) {
+		$titlelink = $_zp_current_category->getTitlelink();
+	} else {
+		$titlelink = $catlink;
+	}
+	return $_zp_zenpage->getNewsBaseURL().$_zp_zenpage->getNewsCategoryPath().urlencode($titlelink);
 }
 
 
@@ -1262,9 +1311,7 @@ function getNewsCategoryURL($catlink='') {
  * @return string
  */
 function printNewsCategoryURL($before='',$catlink='') {
-	if (!empty($catlink)) {
-		echo "<a href=\"".getNewsCategoryURL($catlink)."\" title=\"".html_encode(getCategoryTitle($catlink))."\">".$before.getCategoryTitle($catlink)."</a>";
-	}
+	echo "<a href=\"".getNewsCategoryURL($catlink)."\" title=\"".html_encode(getCategoryTitle($catlink))."\">".$before.getCategoryTitle($catlink)."</a>";
 }
 
 
@@ -1278,7 +1325,7 @@ function getNewsIndexURL() {
 	if($_zp_zenpage->news_on_index) {
 		return getGalleryIndexURL(false);
 	} else {
-		return rewrite_path('news', "/index.php?p=news");
+		return $_zp_zenpage->getNewsIndexURL();
 	}
 }
 
@@ -1301,7 +1348,8 @@ function printNewsIndexURL($name='', $before='') {
  * @return string
  */
 function getNewsBaseURL() {
-	return rewrite_path('news', "/index.php?p=news");
+	global $_zp_zenpage;
+	return $_zp_zenpage->getNewsBaseURL();
 }
 
 
@@ -1311,7 +1359,8 @@ function getNewsBaseURL() {
  * @return string
  */
 function getNewsCategoryPath() {
-	return rewrite_path("/category/","&category=",false);
+	global $_zp_zenpage;
+	return $_zp_zenpage->getNewsCategoryPath();
 }
 
 /**
@@ -1320,7 +1369,8 @@ function getNewsCategoryPath() {
  * @return string
  */
 function getNewsArchivePath() {
-	return rewrite_path("/archive/","&date=",false);
+	global $_zp_zenpage;
+	return $_zp_zenpage->getNewsArchivePath();
 }
 
 
@@ -1330,7 +1380,8 @@ function getNewsArchivePath() {
  * @return string
  */
 function getNewsTitlePath() {
-	return rewrite_path("/","&title=",false);
+	global $_zp_zenpage;
+	return $_zp_zenpage->getNewsTitlePath();
 }
 
 
@@ -1340,7 +1391,8 @@ function getNewsTitlePath() {
  * @return string
  */
 function getNewsPagePath() {
-	return rewrite_path("/","&page=",false);
+	global $_zp_zenpage;
+	return $_zp_zenpage->getNewsPagePath();
 }
 
 
@@ -1352,9 +1404,11 @@ function getNewsPagePath() {
  * @return string
  */
 function getNewsURL($titlelink='') {
-	if(!empty($titlelink)) {
-		$path = getNewsBaseURL().getNewsTitlePath().urlencode($titlelink);
-		return $path;
+	global $_zp_current_zenpage_news;
+	if(empty($titlelink)) {
+		return $_zp_current_zenpage_news->getNewsLink();
+	} else {
+		return getNewsBaseURL().getNewsTitlePath().urlencode($titlelink);
 	}
 }
 
@@ -1582,7 +1636,7 @@ function getTotalNewsPages() {
 	if(ZP_COMBINEWS AND !is_NewsCategory() AND !is_NewsArchive()) {
 		$articlecount = $_zp_zenpage->countCombiNews();
 	} else {
-		$articlecount = count($_zp_zenpage ->getNewsArticles(0,'all'));
+		$articlecount = count($_zp_zenpage ->getArticles(0,'all'));
 	}
 }
 
@@ -1609,7 +1663,7 @@ function getNextPrevNews($option='',$sortorder='date',$sortdirection='desc') {
 	if(!ZP_COMBINEWS) {
 		$current = 0;
 		if(!empty($option)) {
-			$all_articles = $_zp_zenpage->getNewsArticles('',NULL,false,$sortorder,$sortdirection);
+			$all_articles = $_zp_zenpage->getArticles('',NULL,false,$sortorder,$sortdirection);
 			$count = 0;
 			foreach($all_articles as $article) {
 				$newsobj = new ZenpageNews($article['titlelink']);
@@ -1970,8 +2024,7 @@ function printNestedMenu($option='list',$mode=NULL,$counter=TRUE, $css_id=NULL,$
 	if ($showsubs === true) $showsubs = 9999999999;
 	switch($mode) {
 		case 'pages':
-			$published = !zp_loggedin(ZENPAGE_PAGES_RIGHTS | VIEW_PAGES_RIGHTS);
-			$items = $_zp_zenpage->getPages($published);
+			$items = $_zp_zenpage->getPages();
 			$currentitem_id = getPageID();
 			if (is_object($_zp_current_zenpage_page)) {
 				$currentitem_parentid = $_zp_current_zenpage_page->getParentID();
@@ -1982,7 +2035,6 @@ function printNestedMenu($option='list',$mode=NULL,$counter=TRUE, $css_id=NULL,$
 			break;
 		case 'categories':
 		case 'allcategories':
-			$published = !zp_loggedin(ZENPAGE_NEWS_RIGHTS | VIEW_NEWS_RIGHTS);
 			$items = $_zp_zenpage->getAllCategories();
 			if (is_object($_zp_current_category)) {
 				$currentitem_sortorder = $_zp_current_category->getSortOrder();
@@ -2028,12 +2080,12 @@ function printNestedMenu($option='list',$mode=NULL,$counter=TRUE, $css_id=NULL,$
 				}
 				if($counter) {
 					if(ZP_COMBINEWS) {
-						$totalcount = $_zp_zenpage->countCombiNews($published);
+						$totalcount = $_zp_zenpage->countCombiNews();
 					} else {
 						if(in_context(ZP_ZENPAGE_NEWS_CATEGORY) && $mode == 'categories') {
-							$totalcount = count($_zp_current_category->getArticles(0,$published));
+							$totalcount = count($_zp_current_category->getArticles(0));
 						} else {
-							$totalcount = count($_zp_zenpage->getNewsArticles(0,$published));
+							$totalcount = count($_zp_zenpage->getArticles(0));
 						}
 					}
 					echo "<small> (".$totalcount.")</small>";
@@ -2144,15 +2196,26 @@ function printNestedMenu($option='list',$mode=NULL,$counter=TRUE, $css_id=NULL,$
 					$gettitle = '';
 					$getname = '';
 				}
-				if ($itemtitlelink == $getname && !in_context(ZP_SEARCH)) {
-					$current = $class;
-				} else {
-					$current = "";
-				}
+				$current = "";
+				if($itemtitlelink == $getname && !in_context(ZP_SEARCH)) {
+					switch($mode) {
+						case 'pages':
+							if ($_zp_gallery_page == 'pages.php') {
+								$current = $class;
+							}
+							break;
+						case 'categories':
+						case 'allcategories':
+							if ($_zp_gallery_page == 'news.php') {
+								$current = $class;
+							}
+							break;
+					}
+				} 
 				if ($limit) {
 					$itemtitle = shortenContent($itemtitle, $limit, MENU_TRUNCATE_INDICATOR);
 				}
-				echo "<li><a $current href=\"".$itemurl."\" title=\"".html_encode(strip_tags($itemtitle))."\">".$itemtitle.$count."</a>";
+				echo "<li><a $current href=\"".html_encode($itemurl)."\" title=\"".html_encode(strip_tags($itemtitle))."\">".html_encode($itemtitle).$count."</a>";
 			}
 		}
 	}
@@ -2178,7 +2241,6 @@ function printNestedMenu($option='list',$mode=NULL,$counter=TRUE, $css_id=NULL,$
 /**
  * Prints the parent items breadcrumb navigation for pages or categories
  *
- * @param string $mode 'pages or 'categories'
  * @param string $before Text to place before the breadcrumb item
  * @param string $after Text to place after the breadcrumb item
  */
@@ -2204,7 +2266,7 @@ function printZenpageItemsBreadcrumb($before=NULL, $after=NULL) {
 			$parentitemurl = getNewsCategoryURL($item);
 			$parentitemtitle = $catobj->getTitle();
 		}
-		echo $before."<a href='".$parentitemurl."'>".$parentitemtitle ."</a>".$after;
+		echo $before."<a href='".html_encode($parentitemurl)."'>".html_encode($parentitemtitle) ."</a>".$after;
 	}
 }
 
@@ -2234,10 +2296,16 @@ function getNumPages($total=false) {
 			$_zp_zenpage_pagelist = $_zp_current_search->getSearchPages();
 			return count($_zp_zenpage_pagelist);
 		} else if (in_context(ZP_ZENPAGE_PAGE)) {
-			return count($_zp_current_zenpage_page->getSubPages());
+			if(!zp_loggedin(ADMIN_RIGHTS | ZENPAGE_PAGES_RIGHTS)) {
+				$addquery = ' AND `show` = 1';
+			}
+			return db_count('pages','WHERE parentid='.$_zp_current_zenpage_page->getID().$addquery);
 		}
 	}
-	return count($_zp_zenpage->getPages());
+	if(!zp_loggedin(ADMIN_RIGHTS | ZENPAGE_PAGES_RIGHTS)) {
+		$addquery = ' WHERE `show` = 1';
+	}
+	return db_count('pages',$addquery);
 }
 
 /**
@@ -2261,7 +2329,7 @@ function next_page() {
 		return false;
 	}
 	$page = array_shift($_zp_zenpage_pagelist);
-	$_zp_current_zenpage_page = new ZenpagePage($page['titlelink']);
+	$_zp_current_zenpage_page = new ZenpagePage($page);
 	return true;
 }
 
@@ -2440,7 +2508,7 @@ function getPageContent($titlelink=NULL,$published=true) {
  * @return mixed
  */
 function printPageContent($titlelink=NULL,$published=true) {
-	echo getPageContent($titlelink,$published);
+	echo html_encodeTagged(getPageContent($titlelink,$published));
 }
 
 
@@ -2549,7 +2617,8 @@ function getPageSortorder() {
  * @return string
  */
 function getPageLinkPath() {
-	return rewrite_path("pages/", "/index.php?p=pages&title=");
+	global $_zp_zenpage;
+	return $_zp_zenpage->getPagesLinkPath();
 }
 
 
@@ -2558,23 +2627,30 @@ function getPageLinkPath() {
  *
  * @return string
  */
-function getPageLinkURL($titlelink) {
-	return getPageLinkPath().$titlelink;
+function getPageLinkURL($titlelink='') {
+	global $_zp_zenpage, $_zp_current_zenpage_page;
+	if(empty($titlelink)) {
+		return $_zp_current_zenpage_page->getPageLink();
+	} else {
+		return getPageLinkPath().$titlelink;
+	}
 }
-
 
 /**
- * Prints full path to a specific page
+ * Prints the url to a specific zenpage page
  *
- * @return string
+ * @param string $linktext Text for the URL
+ * @param string $titlelink page to include in URL
+ * @param string $prev text to insert before the URL
+ * @param string $next text to follow the URL
+ * @param string $class optional class
  */
-function printPageLinkURL($titlelink) {
-	echo html_encode(getPageLinkURL($titlelink));
+function printPageLinkURL($linktext, $titlelink, $prev='', $next='', $class=NULL) {
+	if (!is_null($class)) {
+		$class = 'class="' . $class . '"';
+	}
+	echo $prev."<a href=\"".html_encode(getPageLinkURL($titlelink))."\" $class title=\"".html_encode($linktext)."\">".html_encode($linktext)."</a>".$next;
 }
-
-
-
-
 
 /**
  * Prints excerpts of the direct subpages (1 level) of a page for a kind of overview. The setup is:
@@ -2594,7 +2670,7 @@ function printSubPagesExcerpts($excerptlength=NULL, $readmore=NULL, $shortenindi
 	if(is_null($readmore)) {
 		$readmore = get_language_string(ZP_READ_MORE);
 	}
-	$pages = $_zp_current_zenpage_page->getSubPages();
+	$pages = $_zp_current_zenpage_page->getPages();
 	$subcount = 0;
 	if(is_null($excerptlength)) {
 		$excerptlength = ZP_SHORTEN_LENGTH;
@@ -2812,6 +2888,77 @@ function printLatestZenpageComments($number, $shorten='123', $id='showlatestcomm
 /************************************************/
 
 /**
+ * Gets a RSS link
+ *
+ * @param string $option type of RSS: "News" feed for all news articles
+ * 																		"Category" for only the news articles of the category that is currently selected
+ * 																		"NewsWithImages" for all news articles and latest images
+ * 																		"Comments" for all news articles and pages
+ * 																		"Comments-news" for comments of only the news article it is called from
+ * 																		"Comments-page" for comments of only the page it is called from
+ * 																		"Comments-all" for comments from all albums, images, news articels and pages
+ * @param string $categorylink The specific category you want a RSS feed from (only 'Category' mode)
+ * @param string $prev text to before before the link
+ * @param string $linktext title of the link
+ * @param string $next text to appear after the link
+ * @param bool $printIcon print an RSS icon beside it? if true, the icon is zp-core/images/rss.png
+ * @param string $class css class
+ * @param string $lang optional to display a feed link for a specific language (currently works for latest images only). Enter the locale like "de_DE" (the locale must be installed on your Zenphoto to work of course). If empty the locale set in the admin option or the language selector (getOption('locale') is used.
+ */
+function getZenpageRSSLink($option='News', $categorylink='', $lang=NULL) {
+	global $_zp_current_category;
+	if(empty($lang)) {
+		$lang = getOption('locale');
+	}
+	if($option == 'Category') {
+		if(!is_null($categorylink)) {
+			$categorylink = '&category='.sanitize($categorylink);
+		} elseif(empty($categorylink) AND !is_null($_zp_current_category)) {
+			$categorylink = '&category='.$_zp_current_category->getTitlelink();
+		} else {
+			$categorylink = '';
+		}
+	}
+	switch($option) {
+		case 'News':
+			if (getOption('RSS_articles')) {
+				return WEBPATH.'/index.php?rss-news&lang='.$lang;
+			}
+			break;
+		case 'Category':
+			if (getOption('RSS_articles')) {
+				return WEBPATH.'/index.php?rss-news&lang='.$lang.$categorylink;
+			}
+			break;
+		case 'NewsWithImages':
+			if (getOption('RSS_articles')) {
+				return WEBPATH.'/index.php?rss-news&withimages&lang='.$lang;
+			}
+			break;
+		case 'Comments':
+			if (getOption('RSS_article_comments')) {
+				return WEBPATH.'/index.php?rss-comments&type=zenpage&amp;lang='.$lang;
+			}
+			break;
+		case 'Comments-news':
+			if (getOption('RSS_article_comments')) {
+				return WEBPATH.'/index.php?rss-comments&id='.getNewsID().'&title='.urlencode(getNewsTitle()).'&type=news&lang='.$lang;
+			}
+			break;
+		case 'Comments-page':
+			if (getOption('RSS_article_comments')) {
+				return WEBPATH.'/index.php?rss-comments&id='.getPageID().'&title='.urlencode(getPageTitle()).'&type=page&lang='.$lang;
+			}
+			break;
+			case 'Comments-all':
+			if (getOption('RSS_article_comments')) {
+				return WEBPATH.'/index.php?rss-comments&type=allcomments&lang='.$lang;
+			}
+			break;
+	}
+}
+
+/**
  * Prints a RSS link
  *
  * @param string $option type of RSS: "News" feed for all news articles
@@ -2830,7 +2977,6 @@ function printLatestZenpageComments($number, $shorten='123', $id='showlatestcomm
  * @param string $lang optional to display a feed link for a specific language (currently works for latest images only). Enter the locale like "de_DE" (the locale must be installed on your Zenphoto to work of course). If empty the locale set in the admin option or the language selector (getOption('locale') is used.
  */
 function printZenpageRSSLink($option='News', $categorylink='', $prev='', $linktext='', $next='', $printIcon=true, $class=null, $lang=NULL) {
-	global $_zp_current_category;
 	if ($printIcon) {
 		$icon = ' <img src="' . FULLWEBPATH . '/' . ZENFOLDER . '/images/rss.png" alt="RSS Feed" />';
 	} else {
@@ -2839,118 +2985,32 @@ function printZenpageRSSLink($option='News', $categorylink='', $prev='', $linkte
 	if (!is_null($class)) {
 		$class = 'class="' . $class . '"';
 	}
-	if(empty($lang)) {
-		$lang = getOption("locale");
-	}
-	if($option == 'Category') {
-		if(!is_null($categorylink)) {
-			$categorylink = '&amp;category='.sanitize($categorylink);
-		} elseif(empty($categorylink) AND !is_null($_zp_current_category)) {
-			$categorylink = '&amp;category='.$_zp_current_category->getTitlelink();
-		} else {
-			$categorylink = '';
-		}
-	}
 	$linktext = html_encode($linktext);
-	switch($option) {
-		case "News":
-			if (getOption('RSS_articles')) {
-				echo $prev."<a $class href=\"".WEBPATH."/index.php?rss-news&amp;lang=".$lang."\" title=\"".gettext("News RSS")."\" rel=\"nofollow\">".$linktext."$icon</a>".$next;
-			}
-			break;
-		case "Category":
-			if (getOption('RSS_articles')) {
-				echo $prev."<a $class href=\"".WEBPATH."/index.php?rss-news&amp;lang=".$lang.$categorylink."\" title=\"".gettext("News Category RSS")."\" rel=\"nofollow\">".$linktext."$icon</a>".$next;
-			}
-			break;
-		case "NewsWithImages":
-			if (getOption('RSS_articles')) {
-				echo $prev."<a $class href=\"".WEBPATH."/index.php?rss-news&amp;withimages&amp;lang=".$lang."\" title=\"".gettext("News and Gallery RSS")."\"  rel=\"nofollow\">".$linktext."$icon</a>".$next;
-			}
-			break;
-		case "Comments":
-			if (getOption('RSS_article_comments')) {
-				echo $prev."<a $class href=\"".WEBPATH."/index.php?rss-comments&amp;type=zenpage&amp;lang=".$lang."\" title=\"".gettext("Zenpage Comments RSS")."\"  rel=\"nofollow\">".$linktext."$icon</a>".$next;
-			}
-			break;
-		case "Comments-news":
-			if (getOption('RSS_article_comments')) {
-				echo $prev."<a $class href=\"".WEBPATH."/index.php?rss-comments&amp;id=".getNewsID()."&amp;title=".urlencode(getNewsTitle())."&amp;type=news&amp;lang=".$lang."\" title=\"".gettext("News article comments RSS")."\"  rel=\"nofollow\">".$linktext."$icon</a>".$next;
-			}
-			break;
-		case "Comments-page":
-			if (getOption('RSS_article_comments')) {
-				echo $prev."<a $class href=\"".WEBPATH."/index.php?rss-comments&amp;id=".getPageID()."&amp;title=".urlencode(getPageTitle())."&amp;type=page&amp;lang=".$lang."\" title=\"".gettext("Page Comments RSS")."\"  rel=\"nofollow\">".$linktext."$icon</a>".$next;
-			}
-			break;
-			case "Comments-all":
-			if (getOption('RSS_article_comments')) {
-				echo $prev."<a $class href=\"".WEBPATH."/index.php?rss-comments&amp;type=allcomments&amp;lang=".$lang."\" title=\"".gettext("Page Comments RSS")."\"  rel=\"nofollow\">".$linktext."$icon</a>".$next;
-			}
-			break;
-	}
-}
-
-
-/**
- * Returns the RSS link for use in the HTML HEAD
- *
- * @param string $option type of RSS: "News" feed for all news articles
- * 																		"Category" for only the news articles of a specific category
- * 																		"NewsWithImages" for all news articles and latest images
- * @param string $categorylink The specific category you want a RSS feed from (only 'Category' mode)
- * @param string $linktext title of the link
- * @param string $lang optional to display a feed link for a specific language (currently works for latest images only). Enter the locale like "de_DE" (the locale must be installed on your Zenphoto to work of course). If empty the locale set in the admin option or the language selector (getOption('locale') is used.
- *
- * @return string
- */
-function getZenpageRSSHeaderLink($option='', $categorylink='', $linktext='', $lang='') {
-	global $_zp_current_category;
-	$host = html_encode($_SERVER["HTTP_HOST"]);
-	$protocol = SERVER_PROTOCOL.'://';
-	if ($protocol == 'https_admin') {
-		$protocol = 'https://';
-	}
-	if(empty($lang)) {
-		$lang = getOption("locale");
-	}
-	if($option == 'Category') {
-		if(!is_null($categorylink)) {
-			$categorylink = '&amp;category='.sanitize($categorylink);
-		} elseif(empty($categorylink) AND !is_null($_zp_current_category)) {
-			$categorylink = '&amp;category='.$_zp_current_category->getTitlelink();
-		} else {
-			$categorylink = '';
-		}
-	}
-	switch($option) {
-		case "News":
-			if (getOption('RSS_articles')) {
-				return "<link rel=\"alternate\" type=\"application/rss+xml\" title=\"".html_encode(strip_tags($linktext))."\" href=\"".$protocol.$host.WEBPATH."/index.php?rss-news&amp;lang=".$lang."\" />\n";
-			}
-		case "Category":
-			if (getOption('RSS_articles')) {
-				return "<link rel=\"alternate\" type=\"application/rss+xml\" title=\"".html_encode(strip_tags($linktext))."\" href=\"".$protocol.$host.WEBPATH."/index.php?rss-news&amp;lang=".$lang.$categorylink."\" />\n";
-			}
-		case "NewsWithImages":
-			if (getOption('RSS_articles')) {
-				return "<link rel=\"alternate\" type=\"application/rss+xml\" title=\"".html_encode(strip_tags($linktext))."\" href=\"".$protocol.$host.WEBPATH."/index.php?rss-news&amp;withimages&amp;lang=".$lang."\" />\n";
-			}
-	}
+	echo $prev."<a $class href=\"".html_encode(getZenpageRSSLink($option,$categorylink,$lang))."\" title=\"".gettext("News RSS")."\" rel=\"nofollow\">".$linktext."$icon</a>".$next;
 }
 
 
 /**
  * Prints the RSS link for use in the HTML HEAD
- *
- * @param string $option type of RSS (News, NewsCategory, NewsWithLatestImages)
+ * @param string $option type of RSS: "News" feed for all news articles
+ * 																		"Category" for only the news articles of the category that is currently selected
+ * 																		"NewsWithImages" for all news articles and latest images
+ * 																		"Comments" for all news articles and pages
+ * 																		"Comments-news" for comments of only the news article it is called from
+ * 																		"Comments-page" for comments of only the page it is called from
+ * 																		"Comments-all" for comments from all albums, images, news articels and pages
  * @param string $categorylink The specific category you want a RSS feed from (only 'Category' mode)
  * @param string $linktext title of the link
  * @param string $lang optional to display a feed link for a specific language (currently works for latest images only). Enter the locale like "de_DE" (the locale must be installed on your Zenphoto to work of course). If empty the locale set in the admin option or the language selector (getOption('locale') is used.
  *
  */
-function printZenpageRSSHeaderLink($option,$category,$linktext,$lang) {
-	echo getZenpageRSSHeaderLink($option,$category,$linktext,$lang);
+function printZenpageRSSHeaderLink($option='News',$categorylink='',$linktext='',$lang=null) {
+	$host = html_encode($_SERVER["HTTP_HOST"]);
+	$protocol = SERVER_PROTOCOL.'://';
+	if ($protocol == 'https_admin') {
+		$protocol = 'https://';
+	}
+	echo "<link rel=\"alternate\" type=\"application/rss+xml\" title=\"".html_encode(strip_tags($linktext))."\" href=\"".$protocol.$host.html_encode(getZenpageRSSLink($option,$categorylink,$lang))."\" />\n";
 }
 
 /**

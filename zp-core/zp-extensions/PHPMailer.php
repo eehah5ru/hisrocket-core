@@ -4,19 +4,16 @@
  *
  * Configure the plugin options as necessary.
  *
+ * @author Stephen Billard (sbillard)
  * @package plugins
  */
 $plugin_is_filter = 8|CLASS_PLUGIN;
 $plugin_description = gettext("Zenphoto outgoing mail handler based on the <em>PHPMailer</em> class mailing facility.");
 $plugin_author = "Stephen Billard (sbillard)";
-$plugin_version = '1.4.1';
-$plugin_disable = (version_compare(PHP_VERSION, '5.0.0') != 1) ? gettext('PHP version 5 or greater is required.') : false;
-if ($plugin_disable) {
-	setOption('zp_plugin_PHPMailer',0);
-} else {
-	$option_interface = 'zp_PHPMailer';
-	zp_register_filter('sendmail', 'zenphoto_PHPMailer');
-}
+$plugin_version = '1.4.2';
+$option_interface = 'zp_PHPMailer';
+zp_register_filter('sendmail', 'zenphoto_PHPMailer');
+
 
 /**
  * Option handler class

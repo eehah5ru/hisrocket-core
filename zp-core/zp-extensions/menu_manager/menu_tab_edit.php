@@ -1,6 +1,5 @@
 <?php
 define ('OFFSET_PATH', 4);
-require_once(dirname(dirname(dirname(__FILE__))).'/admin-functions.php');
 require_once(dirname(dirname(dirname(__FILE__))).'/admin-globals.php');
 if (getOption('zp_plugin_zenpage')) {
 	require_once(dirname(dirname(dirname(__FILE__))).'/'.PLUGIN_FOLDER.'/zenpage/zenpage-admin-functions.php');
@@ -19,7 +18,7 @@ if(isset($_GET['id'])) {
 if(isset($_GET['save'])) {
 	XSRFdefender('update_menu');
 	if ($_POST['update']) {
-		$result = updateMenuItem($report);
+		$result = updateMenuItem($reports);
 	} else {
 		$result = addItem($reports);
 	}
@@ -202,17 +201,29 @@ function handleSelectorChange(type) {
 <h1>
 <?php
 if(is_array($result) && $result['id']) {
-	if (isset($_GET['edit'])) {
-		echo gettext("Menu Manager: Edit Menu Item");
-	} else {
-		echo gettext("Menu Manager: Edit Menu Item or add new Menu Item");
-	}
+	echo gettext("Menu Manager: Edit Menu Item");
 } else {
 	echo gettext("Menu Manager: Add Menu Item");
 }
 ?>
 </h1>
-<p class="buttons"><strong><a href="menu_tab.php?menuset=<?php echo $menuset; ?>" title="<?php echo gettext("Back"); ?>"><img	src="../../images/arrow_left_blue_round.png" alt="" /><?php echo gettext("Back"); ?></a></strong></p>
+<?php
+if (isset($_GET['save']) && !isset($_GET['add'])) {
+	?>
+	<div class="messagebox fade-message">
+		<h2>
+		<?php echo gettext("Changes applied") ?>
+		</h2>
+	</div>
+	<?php
+}
+?>
+<p class="buttons">
+	<strong><a href="menu_tab.php?menuset=<?php echo $menuset; ?>" title="<?php echo gettext("Back"); ?>"><img	src="../../images/arrow_left_blue_round.png" alt="" /><?php echo gettext("Back"); ?></a></strong>
+	<span class="floatright">
+	<strong><a href="menu_tab_edit.php?add&amp;menuset=<?php echo urlencode($menuset); ?>" title="<?php echo gettext("Add Menu Items"); ?>"><img src="../../images/add.png" alt="" /> <?php echo gettext("Add Menu Items"); ?></a></strong>
+	</span>
+</p>
 <br clear="all" /><br />
 <div class="box" style="padding:15px; margin-top: 10px">
 <?php
@@ -225,7 +236,7 @@ if(is_array($result)) {
 	}
 	$action = !empty($id);
 }
-if (isset($_GET['add'])) {
+if (isset($_GET['add']) && !isset($_GET['save'])) {
 	$add = '&amp;add'
 	?>
 	<select id="typeselector" name="typeselector">
@@ -272,7 +283,7 @@ if (isset($_GET['add'])) {
 		}
 			?>
 			<tr>
-				<td colspan="2"><?php printf(gettext("Menu set <em>%s</em>"), $selector); ?></td>
+				<td colspan="2"><?php printf(gettext("Menu <em>%s</em>"), $selector); ?></td>
 			</tr>
 			<tr style="vertical-align: top">
 				<td style="width: 13%"><?php echo gettext("Type:"); ?></td>
@@ -287,10 +298,10 @@ if (isset($_GET['add'])) {
 				<td>
 				<span id="titleinput"><?php print_language_string_list($result['title'],"title",false,NULL,'',100); ?></span>
 				<?php
-				printAlbumsSelector();
+				printAlbumsSelector($result['link']);
 				if (class_exists('Zenpage')) {
-					printZenpagePagesSelector();
-					printZenpageNewsCategorySelector();
+					printZenpagePagesSelector($result['link']);
+					printZenpageNewsCategorySelector($result['link']);
 				}
 				?>
 				</td>
@@ -332,11 +343,11 @@ if (isset($_GET['add'])) {
 			<?php
 			if (is_array($result) && !empty($result['type'])) {
 				$array = getItemTitleAndURL($result);
-				if (is_null($array['title'])) {
+				if (!$array['valid']) {
 					?>
 					<tr>
 						<td colspan="2">
-							<span class="notebox"><?php echo gettext('The target for this menu element no longer exists'); ?></span>
+							<span class="notebox"><?php echo gettext('Target no longer exists'); ?></span>
 						</td>
 					</tr>
 					<?php

@@ -22,7 +22,7 @@
 $plugin_is_filter = 5|ADMIN_PLUGIN|THEME_PLUGIN;
 $plugin_description = gettext("Provides a means for placing a user registration form on your theme pages.");
 $plugin_author = "Stephen Billard (sbillard)";
-$plugin_version = '1.4.1';
+$plugin_version = '1.4.2';
 
 $option_interface = 'register_user_options';
 
@@ -40,7 +40,7 @@ class register_user_options {
 
 	function register_user_options() {
 		global $_zp_authority;
-		gettext($str = 'You have received this email because you registered on the site. To complete your registration visit %s.');
+		gettext($str = 'You have received this email because you registered with the user id %3$s on this site.'."\n".'To complete your registration visit %1$s.');
 		setOptionDefault('register_user_text', getAllTranslations($str));
 		gettext($str = 'Click here to register for this site.');
 		setOptionDefault('register_user_page_tip', getAllTranslations($str));
@@ -75,7 +75,7 @@ class register_user_options {
 												'desc' => gettext('If checked, The user\'s e-mail address will be used as his User ID.')),
 											gettext('Email notification text') => array('key' => 'register_user_text', 'type' => OPTION_TYPE_TEXTAREA,
 												'order' => 3,
-												'desc' => gettext('Text for the body of the email sent to the user. <p class="notebox"><strong>Note:</strong> You must include <code>%s</code> in your message where you wish the registration completion link to appear.</p>')),
+												'desc' => gettext('Text for the body of the email sent to the registrant for registration verification. <p class="notebox"><strong>Note:</strong> You must include <code>%1$s</code> in your message where you wish the <em>registration verification</em> link to appear. You may also insert the registrant\'s <em>name</em> (<code>%2$s</code>), <em>user id</em> (<code>%3$s</code>), and <em>password</em>* (<code>%4$s</code>).<br /><br />*For security reasons we recommend <strong>not</strong> inserting the <em>password</em>.</p>')),
 											gettext('User registration page') => array('key' => 'register_user_page', 'type' => OPTION_TYPE_CUSTOM,
 												'order' => 0,
 												'desc' => gettext('If this option is set, the visitor login form will include a link to this page. The link text will be labeled with the text provided.')),
@@ -205,38 +205,46 @@ function printRegistrationForm($thanks=NULL) {
 	if (isset($_GET['verify'])) {
 		$currentadmins = $_zp_authority->getAdministrators();
 		$params = unserialize(pack("H*", trim(sanitize($_GET['verify']),'.')));
+		// expung the verify query string as it will cause us to come back here if login fails.
+		unset($_GET['verify']); // so it will not be in the way if the logon fails
+		$_SERVER['REQUEST_URI'] = preg_replace('/\?verify=(.*)/', '', sanitize($_SERVER['REQUEST_URI']));
+
 		$userobj = $_zp_authority->getAnAdmin(array('`user`=' => $params['user'], '`valid`=' => 1));
 		if ($userobj->getEmail() == $params['email']) {
-			$userobj->setCredentials(array('registered','user','email'));
-			$rights = getOption('register_user_user_rights');
-			$group = NULL;
-			if (!is_numeric($rights)) {	//  a group or template
-				$admin = $_zp_authority->getAnAdmin(array('`user`=' => $rights,'`valid`=' => 0));
-				if ($admin) {
-					$userobj->setObjects($admin->getObjects());
-					if ($admin->getName() != 'template') {
-						$group = $rights;
+			if (!$userobj->getRights()) {
+				$userobj->setCredentials(array('registered','user','email'));
+				$rights = getOption('register_user_user_rights');
+				$group = NULL;
+				if (!is_numeric($rights)) {	//  a group or template
+					$admin = $_zp_authority->getAnAdmin(array('`user`=' => $rights,'`valid`=' => 0));
+					if ($admin) {
+						$userobj->setObjects($admin->getObjects());
+						if ($admin->getName() != 'template') {
+							$group = $rights;
+						}
+						$rights = $admin->getRights();
+					} else {
+						$rights = NO_RIGHTS;
 					}
-					$rights = $admin->getRights();
-				} else {
-					$rights = NO_RIGHTS;
 				}
-			}
-			$userobj->setRights($rights | NO_RIGHTS);
-			$userobj->setGroup($group);
-			zp_apply_filter('register_user_verified', $userobj);
-			$notify = false;
-			if (getOption('register_user_notify')) {
-				$notify = zp_mail(gettext('Zenphoto Gallery registration'),sprintf(gettext('%1$s (%2$s) has registered for the zenphoto gallery providing an e-mail address of %3$s.'),$userobj->getName(), $userobj->getUser(), $userobj->getEmail()));
-			}
-			if (empty($notify)) {
-				if (getOption('register_user_create_album')) {
-					$userobj->createPrimealbum();
+				$userobj->setRights($rights | NO_RIGHTS);
+				$userobj->setGroup($group);
+				zp_apply_filter('register_user_verified', $userobj);
+				$notify = false;
+				if (getOption('register_user_notify')) {
+					$notify = zp_mail(gettext('Zenphoto Gallery registration'),sprintf(gettext('%1$s (%2$s) has registered for the zenphoto gallery providing an e-mail address of %3$s.'),$userobj->getName(), $userobj->getUser(), $userobj->getEmail()));
 				}
-				$notify = 'verified';
-				$_POST['user'] = $userobj->getUser();
+				if (empty($notify)) {
+					if (getOption('register_user_create_album')) {
+						$userobj->createPrimealbum();
+					}
+					$notify = 'verified';
+					$_POST['user'] = $userobj->getUser();
+				}
+				$userobj->save();
+			} else {
+				$notify = 'already_verified';
 			}
-			$userobj->save();
 		} else {
 			$notify = 'not_verified';	// User ID no longer exists
 		}
@@ -299,7 +307,7 @@ function printRegistrationForm($thanks=NULL) {
 							$userobj->save();
 							$link = rewrite_path(	FULLWEBPATH.'/page/'.substr($_zp_gallery_page,0, -4).'?verify='.bin2hex(serialize(array('user'=>$user,'email'=>$admin_e))),
 																		FULLWEBPATH.'/index.php?p='.substr($_zp_gallery_page,0, -4).'&verify='.bin2hex(serialize(array('user'=>$user,'email'=>$admin_e))),false);
-							$message = sprintf(get_language_string(getOption('register_user_text')), $link);
+							$message = sprintf(get_language_string(getOption('register_user_text')), $link, $admin_n, $user, $pass);
 							$notify = zp_mail(get_language_string(gettext('Registration confirmation')), $message, array($user=>$admin_e));
 							if (empty($notify)) {
 								$notify = 'accepted';
@@ -346,7 +354,7 @@ function printRegistrationForm($thanks=NULL) {
 				?>
 				<p><?php echo gettext('You may now log onto the site.'); ?></p>
 				<?php
-				printPasswordForm('', false, true, WEBPATH.'/'.ZENFOLDER.'/admin.php');
+				printPasswordForm('', false, true, WEBPATH.'/'.ZENFOLDER.'/admin-users.php?page=users');
 			}
 			$notify = 'success';
 		} else {
@@ -374,6 +382,9 @@ function printRegistrationForm($thanks=NULL) {
 					break;
 				case 'not_verified':
 					echo gettext('Your registration request could not be completed.');
+					break;
+				case 'already_verified':
+					echo gettext('Your registration request was previously accepted.');
 					break;
 				case 'filter':
 					if (is_object($userobj) && !empty($userobj->msg)) {

@@ -2,21 +2,22 @@
 /**
  * Use to tweet new objects as they are published
  *
+ * @author Stephen Billard (sbillard)
  */
 $plugin_is_filter = 9|THEME_PLUGIN|ADMIN_PLUGIN;
 $plugin_description = gettext('Tweet news articles when published.');
 $plugin_author = "Stephen Billard (sbillard)";
-$plugin_version = '1.4.1';
-$plugin_disable = (version_compare(PHP_VERSION, '5.2.0') != 1) ? gettext('PHP version 5.2 or greater is required.') :
-									(function_exists('curl_init')) ? false : gettext('The <em>php_curl</em> extension is required');
+$plugin_version = '1.4.2';
+$plugin_disable = (function_exists('curl_init')) ? false : gettext('The <em>php_curl</em> extension is required');
 if ($plugin_disable) {
 	setOption('zp_plugin_tweet_news',0);
 } else {
 	$option_interface = 'tweet_options';
-	zp_register_filter('show_change', 'tweetNewsPublished');
-	if (getOption('tweet_news_albums'))	zp_register_filter('new_album', 'tweetNewsPublished');
-	if (getOption('tweet_news_images'))	zp_register_filter('new_image', 'tweetNewsPublished');
-	if (getOption('tweet_news_news'))		zp_register_filter('new_article', 'tweetNewsNewArticle');
+	zp_register_filter('show_change', 'tweetZenpagePublished');
+	if (getOption('tweet_news_albums'))	zp_register_filter('new_album', 'tweetZenpagePublished');
+	if (getOption('tweet_news_images'))	zp_register_filter('new_image', 'tweetZenpagePublished');
+	if (getOption('tweet_news_news'))		zp_register_filter('new_article', 'tweetNewZenpageObject');
+	if (getOption('tweet_news_pages'))		zp_register_filter('new_page', 'tweetNewZenpageObject');
 	zp_register_filter('admin_head', 'tweetScan');
 	zp_register_filter('load_theme_script', 'tweetScan');
 	zp_register_filter('admin_overview', 'tweetErrorsOnOverview',0);
@@ -53,6 +54,7 @@ class tweet_options {
 		setOptionDefault('tweet_news_albums', NULL);
 		setOptionDefault('tweet_news_news', 1);
 		setOptionDefault('tweet_news_protected', NULL);
+		setOptionDefault('tweet_news_pages', 0);
 	}
 
 	/**
@@ -81,15 +83,18 @@ class tweet_options {
 		$list = array('<em>'.gettext('Albums').'</em>'=>'tweet_news_albums', '<em>'.gettext('Images').'</em>'=>'tweet_news_images');
 		if (getOption('zp_plugin_zenpage')) {
 			$list['<em>'.gettext('News').'</em>'] = 'tweet_news_news';
+			$list['<em>'.gettext('Pages').'</em>'] = 'tweet_news_pages';
 			$options[gettext('Scan pending')] = array('key'=>'tweet_news_rescan', 'type'=>OPTION_TYPE_CHECKBOX,
 																								'order'=>8,
-																								'desc'=>gettext('<code>tweet_news</code> notices when an article is published. '.
-																																'If the article date is in the future, it is put in the <em>to-be-tweeted</em> and tweeted when that date arrives. '.
-																																'This option allows you to re-populate that list to the current state of scheduled articles.'));
+																								'desc'=>gettext('<code>tweet_news</code> notices when a page or an article is published. '.
+																																'If the date is in the future, it is put in the <em>to-be-tweeted</em> and tweeted when that date arrives. '.
+																																'This option allows you to re-populate that list to the current state of scheduled tweets.')
+																								);
 
 
 		} else {
 			setOption('tweet_news_news', 0);
+			setOption('tweet_news_pages', 0);
 		}
 		$options[gettext('Tweet')] = array('key'=>'tweet_news_items', 'type'=>OPTION_TYPE_CHECKBOX_ARRAY,
 																			'order'=>6,
@@ -106,7 +111,7 @@ class tweet_options {
 				setOptionDefault($option, NULL);
 			}
 			$options[gettext('News categories')] = array('key'=>'tweet_news_categories', 'type'=>OPTION_TYPE_CHECKBOX_UL,
-																													'order'=>6,
+																													'order'=>6.5,
 																													'checkboxes' => $catlist,
 																													'desc'=>gettext('Only those <em>news categories</em> checked will be Tweeted. <strong>Note:</strong> <em>*not categorized*</em> means those news articles which have no category assigned.'));
 		}
@@ -160,7 +165,7 @@ function sendTweet($status) {
  * @param string $msg
  * @param object $article
  */
-function tweetNewsNewArticle($msg, $article) {
+function tweetNewZenpageObject($msg, $article) {
 	$error = tweetObjectWithCheck($article);
 	if ($error) {
 		$msg .= '<p class="errorbox">'.$error.'</p>';
@@ -173,7 +178,7 @@ function tweetNewsNewArticle($msg, $article) {
  * filter for the setShow() methods
  * @param object $obj
  */
-function tweetNewsPublished($obj) {
+function tweetZenpagePublished($obj) {
 	$error = tweetObjectWithCheck($obj);
 	if ($error) {
 		query('INSERT INTO '.prefix('plugin_storage').' (`type`,`aux`,`data`) VALUES ("tweet_news","error",'.db_quote($error).')');
@@ -193,6 +198,17 @@ function tweetObjectWithCheck($obj) {
 		if ($obj->getShow()) {
 			if (getOption('tweet_news_protected') || !$obj->isProtected()) {
 				switch ($type = $obj->table) {
+					case 'pages':
+						$dt = $obj->getDateTime();
+						if($dt > date('Y-m-d H:i:s')) {
+							$result = query_single_row('SELECT * FROM '.prefix('plugin_storage').' WHERE `type`="tweet_news" AND `aux`="pending_pages" AND `data`='.db_quote($obj->getTitlelink()));
+							if (!$result) {
+								query('INSERT INTO '.prefix('plugin_storage').' (`type`,`aux`,`data`) VALUES ("tweet_news","pending_pages",'.db_quote($obj->getTitlelink()).')');
+							}
+						} else {
+							$error = tweetObject($obj);
+						}
+						break;
 					case 'news':
 						$tweet = false;
 						$mycategories = $obj->getCategories();
@@ -214,11 +230,32 @@ function tweetObjectWithCheck($obj) {
 							if (!$result) {
 								query('INSERT INTO '.prefix('plugin_storage').' (`type`,`aux`,`data`) VALUES ("tweet_news","pending",'.db_quote($obj->getTitlelink()).')');
 							}
-							break;
+						} else {
+							$error = tweetObject($obj);
 						}
+						break;
 					case 'albums':
+						$dt = $obj->getPublishDate();
+						if($dt > date('Y-m-d H:i:s')) {
+							$result = query_single_row('SELECT * FROM '.prefix('plugin_storage').' WHERE `type`="tweet_news" AND `aux`="pending_albums" AND `data`='.db_quote($obj->name));
+							if (!$result) {
+								query('INSERT INTO '.prefix('plugin_storage').' (`type`,`aux`,`data`) VALUES ("tweet_news","pending_albums",'.db_quote($obj->name).')');
+							}
+						} else {
+							$error = tweetObject($obj);
+						}
+						break;
 					case 'images':
-						$error = tweetObject($obj);
+						$dt = $obj->getPublishDate();
+						if($dt > date('Y-m-d H:i:s')) {
+							$result = query_single_row('SELECT * FROM '.prefix('plugin_storage').' WHERE `type`="tweet_news" AND `aux`="pending_images" AND `data`='.db_quote($obj->album->name.'/'.$obj->filename));
+							if (!$result) {
+								query('INSERT INTO '.prefix('plugin_storage').' (`type`,`aux`,`data`) VALUES ("tweet_news","pending_images",'.db_quote($obj->album->name.'/'.$obj->filename).')');
+							}
+						} else {
+							$error = tweetObject($obj);
+						}
+						break;
 				}
 			}
 		}
@@ -232,7 +269,6 @@ function tweetObjectWithCheck($obj) {
  * @param object $obj
  */
 function tweetObject($obj) {
-	global $_zp_UTF8;
 	$error = '';
 	$link = getTinyURL($obj);
 	switch ($type = $obj->table) {
@@ -242,11 +278,11 @@ function tweetObject($obj) {
 			if (strlen($text) > 140) {
 				$title = trim(html_entity_decode(strip_tags($obj->getTitle()),ENT_QUOTES));
 				$c = 140 - strlen($link);
-				if ($_zp_UTF8->strlen($title) >= ($c - 25)) {	//	not much point in the body if shorter than 25
+				if (mb_strlen($title) >= ($c - 25)) {	//	not much point in the body if shorter than 25
 					$text = truncate_string($title, $c - 4, '... ').$link;	//	allow for ellipsis
 				} else {
-					$c = $c - $_zp_UTF8->strlen($title) - 5;
-					$text = $title.':'.truncate_string($text, $c, '... ').$link;
+					$c = $c - mb_strlen($title) - 5;
+					$text = $title.': '.truncate_string($text, $c, '... ').$link;
 				}
 			}
 			$error = sendTweet($text);
@@ -258,12 +294,12 @@ function tweetObject($obj) {
 		case 'albums':
 		case 'images':
 			if ($type=='images') {
-				$text = sprintf(gettext('New image:[%2$s]%1$s '),$item = trim(html_entity_decode(strip_tags($obj->getTitle()),ENT_QUOTES)),
+				$text = sprintf(gettext('New image: [%2$s]%1$s '),$item = trim(html_entity_decode(strip_tags($obj->getTitle()),ENT_QUOTES)),
 																														trim(html_entity_decode(strip_tags($obj->album->name),ENT_QUOTES)));
 			} else {
-				$text = sprintf(gettext('New album:%s '),$item = trim(html_entity_decode(strip_tags($obj->getTitle()),ENT_QUOTES)));
+				$text = sprintf(gettext('New album: %s '),$item = trim(html_entity_decode(strip_tags($obj->getTitle()),ENT_QUOTES)));
 			}
-			if ($_zp_UTF8->strlen($text.$link) > 140) {
+			if (mb_strlen($text.$link) > 140) {
 				$c = 140 - strlen($link);
 				$text = truncate_string($text, $c-4, '... ').$link;	//	allow for ellipsis
 			} else {
@@ -276,7 +312,7 @@ function tweetObject($obj) {
 			break;
 		case 'comments':
 			$text = trim(html_entity_decode(strip_tags($obj->getComment()),ENT_QUOTES));
-			if ($_zp_UTF8->strlen($text.$link) > 140) {
+			if (mb_strlen($text.$link) > 140) {
 				$c = 140 - strlen($link);
 				$text = truncate_string($text, $c-4, '... ').$link;	//	allow for ellipsis
 			} else {
@@ -299,9 +335,37 @@ function tweetScan($param) {
 	$result = query_full_array('SELECT * FROM '.prefix('news').' AS news,'.prefix('plugin_storage').' AS store WHERE store.type="tweet_news" AND store.aux="pending" AND store.data = news.titlelink AND news.date <= '.db_quote(date('Y-m-d H:i:s')));
 	if ($result) {
 		foreach ($result as $article) {
-			query('DELETE FROM '.prefix('plugin_storage').' WHERE `type`="tweet_news" AND `aux`="pending" AND `data`='.db_quote($article['titlelink']));
+			query('DELETE FROM '.prefix('plugin_storage').' WHERE `id`='.$article['id']);
 			$news = new ZenpageNews($article['titlelink']);
-			tweetNewsArticle($news);
+			tweetObject($news);
+		}
+	}
+	$result = query_full_array('SELECT * FROM '.prefix('pages').' AS page,'.prefix('plugin_storage').' AS store WHERE store.type="tweet_news" AND store.aux="pending_pages" AND store.data = page.titlelink AND page.date <= '.db_quote(date('Y-m-d H:i:s')));
+	if ($result) {
+		foreach ($result as $page) {
+			query('DELETE FROM '.prefix('plugin_storage').' WHERE `id`='.$page['id']);
+			$page = new ZenpageNews($page['titlelink']);
+			tweetObject($page);
+		}
+	}
+	$result = query_full_array('SELECT * FROM '.prefix('albums').' AS album,'.prefix('plugin_storage').' AS store WHERE store.type="tweet_news" AND store.aux="pending_albums" AND store.data = album.folder AND album.date <= '.db_quote(date('Y-m-d H:i:s')));
+	if ($result) {
+		$gallery = new Gallery();
+		foreach ($result as $album) {
+			query('DELETE FROM '.prefix('plugin_storage').' WHERE `id`='.$album['id']);
+			$album = new Album($gallery, $album['folder']);
+			tweetObject($album);
+		}
+	}
+	$result = query_full_array('SELECT * FROM '.prefix('images').' AS image,'.prefix('plugin_storage').' AS store WHERE store.type="tweet_news" AND store.aux="pending_images" AND store.data LIKE image.filename AND image.date <= '.db_quote(date('Y-m-d H:i:s')));
+	if ($result) {
+		$gallery = new Gallery();
+		foreach ($result as $image) {
+			query('DELETE FROM '.prefix('plugin_storage').' WHERE `id`='.$image['id']);
+			$album = query_single_row('SELECT * FROM '.prefix('albums').' WHERE `id`='.$image['albumid']);
+			$album = new Album($gallery, $album['folder']);
+			$image = newImage($album, $image['filename']);
+			tweetObject($image);
 		}
 	}
 	return $param;
@@ -309,18 +373,49 @@ function tweetScan($param) {
 
 /**
  *
- * Collects all published news articles whose publish date is in the future. Sets the tweetScan list to those found
+ * Collects all published news & pages whose publish date is in the future. Sets the tweetScan list to those found
  */
 function tweetRepopulate() {
+	$found = array();
 	query('DELETE FROM '.prefix('plugin_storage').' WHERE `type`="tweet_news" AND `aux`="pending"');
 	$result = query_full_array('SELECT * FROM '.prefix('news').' WHERE `show`=1 AND `date`>'.db_quote(date('Y-m-d H:i:s')));
 	if ($result) {
 		foreach ($result as $pending) {
 			query('INSERT INTO '.prefix('plugin_storage').' (`type`,`aux`,`data`) VALUES ("tweet_news","pending",'.db_quote($pending['titlelink']).')');
 		}
-		return '<p class="messagebox">'.gettext('Scheduled news articles have been noted for tweeting.').'</p>';
+		$found[] = gettext('news');
 	}
-	return '<p class="messagebox">'.gettext('No scheduled news articles found.').'</p>';
+	query('DELETE FROM '.prefix('plugin_storage').' WHERE `type`="tweet_news" AND `aux`="pending_pages"');
+	$result = query_full_array('SELECT * FROM '.prefix('pages').' WHERE `show`=1 AND `date`>'.db_quote(date('Y-m-d H:i:s')));
+	if ($result) {
+		foreach ($result as $pending) {
+			query('INSERT INTO '.prefix('plugin_storage').' (`type`,`aux`,`data`) VALUES ("tweet_news","pending_pages",'.db_quote($pending['titlelink']).')');
+		}
+		$found[] = gettext('pages');
+	}
+	query('DELETE FROM '.prefix('plugin_storage').' WHERE `type`="tweet_news" AND `aux`="pending_albums"');
+	$result = query_full_array('SELECT * FROM '.prefix('albums').' WHERE `show`=1 AND `date`>'.db_quote(date('Y-m-d H:i:s')));
+	if ($result) {
+		foreach ($result as $pending) {
+			query('INSERT INTO '.prefix('plugin_storage').' (`type`,`aux`,`data`) VALUES ("tweet_news","pending_albums",'.db_quote($pending['folder']).')');
+		}
+		$found[] = gettext('albums');
+	}
+	query('DELETE FROM '.prefix('plugin_storage').' WHERE `type`="tweet_news" AND `aux`="pending_images"');
+	$result = query_full_array('SELECT * FROM '.prefix('images').' WHERE `show`=1 AND `date`>'.db_quote(date('Y-m-d H:i:s')));
+	if ($result) {
+		$gallery = new Gallery();
+		foreach ($result as $pending) {
+			$album = query_single_row('SELECT * FROM '.prefix('albums').' WHERE `id`='.$pending['albumid']);
+			query('INSERT INTO '.prefix('plugin_storage').' (`type`,`aux`,`data`) VALUES ("tweet_news","pending_images",'.db_quote($album['folder'].'/'.$pending['filename']).')');
+		}
+		$found[] = gettext('images');
+	}
+	if (empty($found)) {
+		return '<p class="messagebox">'.gettext('No scheduled news articles found.').'</p>';
+	} else {
+		return '<p class="messagebox">'.gettext('Scheduled items have been noted for tweeting.').'</p>';
+	}
 }
 
 /**
@@ -406,9 +501,6 @@ function tweetTweeterExecute($object, $prefix) {
  * @param unknown_type $object
  */
 function tweetTweeterZenpageExecute($custom, $object) {
-
-debugLog("tweetTweeterZenpageExecute");
-
 	tweetTweeterExecute($object, '');
 	return $custom;
 }

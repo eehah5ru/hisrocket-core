@@ -4,21 +4,25 @@
  * based on EXIF latitude and longitude in the images.
  * Automatically detects if it is on an Image or Album page.
  *
+ * Note:
+ * Google does place limits on the use of its Maps API.
+ * Please review these to be sure your site is in compliance:
+ * 	http://googlegeodevelopers.blogspot.com/2011/10/introduction-of-usage-limits-to-maps.html
+ *
  * @author Stephen Billard (sbillard)
  * @package plugins
  */
-$plugin_description = gettext("Support for providing Google Maps (API version 3) based on EXIF latitude and longitude in the images.");
+$plugin_is_filter = 5|THEME_PLUGIN;
+$plugin_description = gettext('Support for providing Google Maps (API version 3) based on EXIF latitude and longitude in the images.').'<p class=notebox>'.sprintf(gettext('<strong>Note</strong>: Google does place limits on the use of its <a href="%s"><em>Maps API</em></a>. Please review these to be sure your site is in compliance.'),'http://googlegeodevelopers.blogspot.com/2011/10/introduction-of-usage-limits-to-maps.html').'</p>';
 $plugin_author = 'Stephen Billard (sbillard)';
-$plugin_version = '1.4.1';
-$plugin_disable = (version_compare(PHP_VERSION, '5.0.0') != 1) ? gettext('PHP version 5 or greater is required.') : false;
+$plugin_version = '1.4.2';
 
-if ($plugin_disable) {
-	setOption('zp_plugin_GoogleMap',0);
-} else {
-	$option_interface = 'googlemapOptions';
-	if (isset($_zp_gallery_page) && $_zp_gallery_page != 'index.php') {
-		zp_register_filter('theme_head','googlemap_js');
+$option_interface = 'googlemapOptions';
+if (isset($_zp_gallery_page) && $_zp_gallery_page != 'index.php') {
+	if (session_id() == '' && getOption('gmap_sessions')) {
+		session_start();
 	}
+	zp_register_filter('theme_head','googlemap_js');
 }
 
 /**
@@ -30,6 +34,7 @@ function googlemap_js() {
 	global $MAP_OBJECT, $_zp_current_image, $_zp_current_album;
 	$MAP_OBJECT = new GoogleMapAPI();
 	$MAP_OBJECT->setLocale(substr(getOption('locale'),0,2));
+	$MAP_OBJECT->bounds_fudge = 0.001;
 	echo $MAP_OBJECT->getHeaderJS()."\n";
 	?>
 	<style type="text/css">
@@ -37,6 +42,11 @@ function googlemap_js() {
 		.hidden_map {
 			position: absolute;
 			left: -50000px;
+		}
+		.map_image {
+			margin-left: 30%;
+			margin-right: 10%;
+			border: 0px;
 		}
 		-->
 	</style>
@@ -107,8 +117,11 @@ class googlemapOptions {
 									gettext('Map display') => array('key' => 'gmap_display', 'type' => OPTION_TYPE_SELECTOR,
 																	'selections' => array(gettext('show')=>'show', gettext('hide')=>'hide',gettext('colorbox')=>'colorbox'),
 																	'order'=>2.5,
-																	'desc' => gettext('Select <em>hide</em> to initially hide the map. Select <em>colorbox</em> for the map to display in a colorbox. Select <em>show</em> and the map will display when the page loads.'))
-									);
+																	'desc' => gettext('Select <em>hide</em> to initially hide the map. Select <em>colorbox</em> for the map to display in a colorbox. Select <em>show</em> and the map will display when the page loads.')),
+									gettext('Map sessions') => array('key' => 'gmap_sessions', 'type' => OPTION_TYPE_CHECKBOX,
+																	'order'=>8,
+																	'desc' => gettext('If checked GoogleMaps will use sessions to pass map data for the <em>colorbox</em> display option. If the option is not checked the data is passed as part of the link and may exceed the size allowed by some browsers.'))
+		);
 	}
 
 	function handleOption($option, $currentValue) {
@@ -138,12 +151,12 @@ function getGeoCoord($obj) {
 		$exif = $obj->getMetaData();
 		if(!empty($exif['EXIFGPSLatitude']) && !empty($exif['EXIFGPSLongitude'])){
 			$lat_c = explode('.',str_replace(',', '.', $exif['EXIFGPSLatitude']));
-			$lat_f = (float) abs($lat_c[0])+$lat_c[1]/pow(10,strlen($lat_c[1]));
+			$lat_f = round((float) abs($lat_c[0])+$lat_c[1]/pow(10,strlen($lat_c[1])),5);
 			if ($exif['EXIFGPSLatitudeRef'] == 'S') {
 				$lat_f = (float) -$lat_f;
 			}
 			$long_c = explode('.',str_replace(',', '.', $exif['EXIFGPSLongitude']));
-			$long_f = (float) abs($long_c[0])+$long_c[1]/pow(10,strlen($long_c[1]));
+			$long_f = round((float) abs($long_c[0])+$long_c[1]/pow(10,strlen($long_c[1])),5);
 			if ($exif['EXIFGPSLongitudeRef'] == 'W') {
 				$long_f = (float) -$long_f;
 			}
@@ -178,12 +191,12 @@ function addGeoCoord($MAP_OBJECT, $coord) {
 function addPoint($MAP_OBJECT, $lat, $long, $title, $desc) {
 	//convert to float cononically
 	$lat_c = explode('.',str_replace(',', '.', $lat));
-	$lat_f = (float) abs($lat_c[0])+$lat_c[1]/pow(10,strlen($lat_c[1]));
+	$lat_f = round((float) abs($lat_c[0])+$lat_c[1]/pow(10,strlen($lat_c[1])),5);
 	if ($lat_c<0) {
 		$lat_f = (float) -1*$lat_f;
 	}
 	$long_c = explode('.',str_replace(',', '.', $long));
-	$long_f = (float) abs($long_c[0])+$long_c[1]/pow(10,strlen($long_c[1]));
+	$long_f = round((float) abs($long_c[0])+$long_c[1]/pow(10,strlen($long_c[1])),5);
 	if ($long<0) {
 		$long_f = (float) -1*$long_f;
 	}
@@ -216,9 +229,8 @@ function getAlbumGeodata($obj,$MAP_OBJECT){
 		$coord = getGeoCoord($image);
 		if ($coord) {
 			$result = true;	//	at least one image has geodata
-			$coord['desc'] = '<a href="' . html_encode($image->getImageLink()) . '"><img src="' .
-				html_encode($image->getThumb()) . '" alt="' . $image->getDesc() . '" ' .
-				'style=" margin-left: 30%; margin-right: 10%; border: 0px; " /></a><p align=center >' . $image->getDesc()."</p>";
+			$coord['desc'] = '<a href="javascript:image(\''.$obj->name.'\',\''.$image->filename.'\');"><img src="'.html_encode($image->getThumb()).'" alt="'.$image->getDesc().'" '.'class="map_image" /></a>';
+			if ($image->getDesc()) $coord['desc'] .= '<p align=center>' . $image->getDesc()."</p>";
 			addGeoCoord($MAP_OBJECT, $coord);
 		}
 	}
@@ -230,7 +242,7 @@ function getAlbumGeodata($obj,$MAP_OBJECT){
  *
  * @param string $text text for the "toggle" link that shows/hides the map. Set empty to omit
  * @param string $id used to set the IDs for the toggle href element ($id_toggle) and the map element ($id_data)
- * @param string $hide initial map state: "hide", "show", or "colrobox"
+ * @param string $hide initial map state: "hide", "show", or "colorbox"
  * @param object $obj optional image/album object. Pass string for generic map and use callback to set points
  * @param function $callback optional callback function to set map options.
  */
@@ -271,7 +283,7 @@ function printGoogleMap($text=NULL, $id=NULL, $hide=NULL, $obj=NULL, $callback=N
 		}
 	}
 
-	$MAP_OBJECT = new GoogleMapAPI($type.$typeid);
+	$MAP_OBJECT = new GoogleMapAPI($maptype = $type.$typeid);
 	$MAP_OBJECT->_minify_js = defined('RELEASE');
 	$MAP_OBJECT->setZoomLevel(getOption('gmap_zoom'));
 	$MAP_OBJECT->setWidth(getOption('gmap_width'));
@@ -291,6 +303,7 @@ function printGoogleMap($text=NULL, $id=NULL, $hide=NULL, $obj=NULL, $callback=N
 		if (getOption('gmap_terrain')) $mapsallowed[] = 'TERRAIN';
 		$MAP_OBJECT->setTypeControlTypes($mapsallowed);
 	}
+	$empty = get_object_vars($MAP_OBJECT);
 	switch ($type) {
 		case 'images':
 			if (getImageGeodata($obj,$MAP_OBJECT)) {
@@ -319,49 +332,64 @@ function printGoogleMap($text=NULL, $id=NULL, $hide=NULL, $obj=NULL, $callback=N
 	}
 
 
-	echo $MAP_OBJECT->getMapJS();
 	switch ($hide) {
 		case 'colorbox':
-			$w = str_replace('px','',$MAP_OBJECT->width)+20;
-			$h = str_replace('px','',$MAP_OBJECT->height)+20;
-			if (function_exists('bzcompress')) {
-				$method = 'bzip2';
-				$data = bzcompress(serialize($MAP_OBJECT));
-			} else {
-				$method = 'gzip';
-				$data = gzcompress(serialize($MAP_OBJECT));
-			}
-			$param = base64_encode($data);
-			?>
-			<a href="javascript:<?php echo $id_data; ?>Colorbox();" title="<?php echo $text; ?>" class="google_map">
-				<?php echo $text; ?>
-			</a>
-			<div id="<?php echo $id_data; ?>" class="hidden_map">
-				<div id="<?php echo $id_data; ?>_map">
-					<?php
-					echo $MAP_OBJECT->printOnLoad();
-					echo $MAP_OBJECT->printMap();
-					?>
-				</div>
-			</div>
-			<script type="text/javascript">
-				// <!-- <![CDATA[
-				function <?php echo $id_data; ?>Colorbox() {
-					$('#<?php echo $id_data; ?>').removeClass('hidden_map');
-					$.colorbox({href:"#<?php echo $id_data; ?>_map", inline:true, open:true});
-					$('#<?php echo $id_data; ?>').addClass('hidden_map');
+			if (zp_has_filter('theme_head','colorbox_css')) {
+				$w = str_replace('px','',$MAP_OBJECT->width)+20;
+				$h = str_replace('px','',$MAP_OBJECT->height)+20;
+
+				$mapvars = get_object_vars($MAP_OBJECT);
+				foreach ($mapvars as $key=>$value) {
+					if ($empty[$key] == $mapvars[$key]) {
+						unset ($mapvars[$key]);
+					}
 				}
-				$(document).ready(function(){
-					$("#<?php echo $id_data; ?>_map").colorbox({iframe:true, innerWidth:'<?php echo $w; ?>px', innerHeight:'<?php echo $h; ?>px'});
-				});
-				// ]]> -->
-			</script>
-			<?php
-			break;
+				if (getOption('gmap_sessions')) {
+					$param = '';
+					$_SESSION['GoogleMapVars'] = $mapvars;
+				} else {
+					if (isset($mapvars['_markers'])) {
+						//	force rounding of lat/lon for shorter string
+						foreach ($mapvars['_markers'] as $key=>$marker) {
+							$mapvars['_markers'][$key]['lat'] = (string) $marker['lat'];
+							$mapvars['_markers'][$key]['lon'] = (string) $marker['lon'];
+						}
+					}
+					$serializedData = serialize($mapvars);
+					if (function_exists('bzcompress')) {
+						$data = bzcompress($serializedData);
+					} else {
+						$data = gzcompress($serializedData);
+					}
+					$param = '&amp;data='.base64_encode($data);
+				}
+				?>
+
+				<a href="<?php echo WEBPATH.'/'.ZENFOLDER.'/'.PLUGIN_FOLDER.'/GoogleMap/m.php?type='.$maptype.$param ?>" title="<?php echo $text; ?>" class="google_map">
+					<?php echo $text; ?>
+				</a>
+				<script type="text/javascript">
+					// <!-- <![CDATA[
+					$(document).ready(function(){
+						$(".google_map").colorbox({
+																	iframe:true,
+																	innerWidth:'<?php echo $w; ?>px',
+																	innerHeight:'<?php echo $h; ?>px',
+																	close: '<?php echo gettext("close"); ?>'
+																	});
+					});
+					// ]]> -->
+				</script>
+				<?php
+				break;
+			}
 		case 'hide':
 			?>
 			<script type="text/javascript">
 				// <!-- <![CDATA[
+				function image(album,image) {
+					window.location = '<?php echo WEBPATH ?>/index.php?album='+album+'&image='+image;
+				}
 				function toggle_<?php echo $id_data; ?>() {
 					if ($('#<?php echo $id_data; ?>').hasClass('hidden_map')) {
 						$('#<?php echo $id_data; ?>').removeClass('hidden_map');
@@ -376,21 +404,30 @@ function printGoogleMap($text=NULL, $id=NULL, $hide=NULL, $obj=NULL, $callback=N
 			</a>
 			<div id="<?php echo $id_data; ?>" class="hidden_map">
 				<?php
-				echo $MAP_OBJECT->printOnLoad();
+				echo $MAP_OBJECT->getMapJS();
 				echo $MAP_OBJECT->printMap();
+				echo $MAP_OBJECT->printOnLoad();
 				?>
 			</div>
 			<?php
 			break;
 		case 'show':
 			?>
+			<script type="text/javascript">
+				// <!-- <![CDATA[
+				function image(album,image) {
+					window.location = '<?php echo WEBPATH ?>/index.php?album='+album+'&image='+image;
+				}
+				// ]]> -->
+			</script>
 			<a id="<?php echo $id_toggle; ?>" href="javascript:toggleMap('<?php echo $id_data; ?>');" title="<?php  echo gettext('Display or hide the Google Map.'); ?>">
 				<?php echo $text; ?>
 			</a>
 			<div id="<?php echo $id_data; ?>">
 				<?php
-				echo $MAP_OBJECT->printOnLoad();
+				echo $MAP_OBJECT->getMapJS();
 				echo $MAP_OBJECT->printMap();
+				echo $MAP_OBJECT->printOnLoad();
 				?>
 			</div>
 			<?php

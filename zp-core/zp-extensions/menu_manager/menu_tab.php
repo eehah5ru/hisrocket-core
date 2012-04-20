@@ -1,6 +1,5 @@
 <?php
 define ('OFFSET_PATH', 4);
-require_once(dirname(dirname(dirname(__FILE__))).'/admin-functions.php');
 require_once(dirname(dirname(dirname(__FILE__))).'/admin-globals.php');
 require_once(dirname(dirname(dirname(__FILE__))).'/template-functions.php');
 if (getOption('zp_plugin_zenpage')) {
@@ -27,9 +26,16 @@ if (empty($menuset)) {	//	setup default menuset
 $reports = array();
 if(isset($_POST['update'])) {
 	XSRFdefender('update_menu');
-	processMenuBulkActions($reports);
-	updateItemsSortorder($reports);
+	if ($_POST['checkallaction']=='noaction') {
+		updateItemsSortorder($reports);
+	} else {
+		$report = processMenuBulkActions();
+		if ($report) {
+			$reports[] = $report;
+		}
+	}
 }
+
 if (isset($_GET['delete'])) {
 	XSRFdefender('delete_menu');
 	$sql = 'SELECT * FROM '.prefix('menu').' WHERE `id`='.sanitize_numeric($_GET['id']);
@@ -50,7 +56,22 @@ if (isset($_GET['deletemenuset'])) {
 	$sql = 'DELETE FROM '.prefix('menu').' WHERE `menuset`='.db_quote(sanitize($_GET['deletemenuset']));
 	query($sql);
 	$_menu_manager_items = array();
-	$delmsg =  "<p class='messagebox fade-message'>".sprintf(gettext("Menu set '%s' deleted"),html_encode($_GET['deletemenuset']))."</p>";
+	$reports[] =  "<p class='messagebox fade-message'>".sprintf(gettext("Menu '%s' deleted"),html_encode($_GET['deletemenuset']))."</p>";
+}
+if (isset($_GET['dupmenuset'])) {
+	XSRFdefender('dup_menu');
+	$oldmenuset = sanitize($_GET['dupmenuset']);
+	$_GET['menuset'] = $menuset = sanitize($_GET['targetname']);
+	$menuitems = query_full_array('SELECT * FROM '.prefix('menu').' WHERE `menuset`='.db_quote($oldmenuset).' ORDER BY `sort_order`');
+	foreach ($menuitems as $key=>$item) {
+		$order = count(explode('-',$item['sort_order']))-1;
+		$menuitems[$key]['nesting'] = $order;
+	}
+	if (createMenuIfNotExists($menuitems,$menuset)) {
+		$reports[] =  "<p class='messagebox fade-message'>".sprintf(gettext("Menu '%s' duplicated"),html_encode($oldmenuset))."</p>";
+	} else {
+		$reports[] =  "<p class='messagebox fade-message'>".sprintf(gettext("Menu '%s' already exists"),html_encode($menuset))."</p>";
+	}
 }
 // publish or un-publish page by click
 if(isset($_GET['publish'])) {
@@ -71,24 +92,25 @@ printTabs();
 <div id="content">
 <?php
 zp_apply_filter('admin_note','menu', '');
-foreach ($reports as $report) {
-	echo $report;
-}
 
-$sql = 'SELECT COUNT(DISTINCT `menuset`) FROM '.prefix('menu');
-$result = query($sql);
-$count = db_result($result, 0);
+$count = db_count('menu',NULL,'DISTINCT `menuset`');
 ?>
 <script type="text/javascript">
 	//<!-- <![CDATA[
-	 function newMenuSet() {
-		var new_menuset = prompt("<?php echo gettext('Menuset id'); ?>","<?php echo 'menu_'.$count; ?>");
+	function newMenuSet() {
+		var new_menuset = prompt("<?php echo gettext('Name for new menu:'); ?>","<?php echo 'menu_'.$count; ?>");
 		if (new_menuset) {
 			window.location = '?menuset='+encodeURIComponent(new_menuset);
 		}
 	};
+	function dupMenuSet() {
+		var targetname = prompt('<?php echo gettext('Name for new menu:'); ?>','<?php printf(gettext('Copy_of_%s'),$menuset); ?>');
+		if (targetname) {
+			launchScript('',['dupmenuset=<?php echo html_encode($menuset); ?>','targetname='+encodeURIComponent(targetname),'XSRFToken=<?php echo getXSRFToken('dup_menu')?>']);
+		}
+	};
 	function deleteMenuSet() {
-		if (confirm('<?php printf(gettext('Ok to delete menu set %s? This cannot be undone!'),html_encode($menuset)); ?>')) {
+		if (confirm('<?php printf(gettext('Ok to delete menu %s? This cannot be undone!'),html_encode($menuset)); ?>')) {
 			launchScript('',['deletemenuset=<?php echo html_encode($menuset); ?>','XSRFToken=<?php echo getXSRFToken('delete_menu')?>']);
 		}
 	};
@@ -106,22 +128,33 @@ $count = db_result($result, 0);
 	}
 	// ]]> -->
 </script>
-<h1><?php echo gettext("Menu Manager")."<small>"; printf(gettext(" (Menu set: %s)"), html_encode($menuset)); echo "</small>"; ?></h1>
+<h1><?php echo gettext("Menu Manager")."<small>"; printf(gettext(" (Menu: %s)"), html_encode($menuset)); echo "</small>"; ?></h1>
 
 <form action="menu_tab.php?menuset=<?php echo $menuset; ?>" method="post" name="update" onsubmit="return confirmAction();">
 	<?php XSRFToken('update_menu'); ?>
 <p>
-<?php echo gettext("Drag the items into the order, including sub levels, you wish them displayed. This lets you create arbitrary menus and place them on your theme pages. Use printCustomMenu() to place them on your pages."); ?>
+<?php echo gettext("Drag the items into the order and nesting you wish displayed. Place the menu on your theme pages by calling printCustomMenu()."); ?>
 </p>
 <p class="notebox">
-<?php echo gettext("<strong>IMPORTANT:</strong> This menu's order is completely independent from any order of albums or pages set on the other admin pages. It is recommend to uses is with customized themes only that do not use the standard Zenphoto display structure. Standard Zenphoto functions like the breadcrumb functions or the next_album() loop for example will NOT take care of this menu's structure!");?>
+<?php echo gettext("<strong>IMPORTANT:</strong> This menu's order is completely independent from any order of albums or pages set on the other admin pages. Use with customized themes that do not wish the standard Zenphoto display structure. Zenphoto functions such as the breadcrumb functions and the next_album() loop will NOT reflect of this menu's structure!");?>
 </p>
+<?php
+foreach ($reports as $report) {
+	echo $report;
+}
+?>
 <span class="buttons">
-	<button class="serialize" type="submit" title="<?php echo gettext("Apply"); ?>"><img src="../../images/pass.png" alt="" /><strong><?php echo gettext("Apply"); ?></strong></button>
-	<strong><a href="menu_tab_edit.php?add&amp;menuset=<?php echo urlencode($menuset); ?>" title="<?php echo gettext("Add Menu Items"); ?>"><img src="../../images/add.png" alt="" /> <?php echo gettext("Add Menu Items"); ?></a></strong>
-	<strong><a href="javascript:newMenuSet();" title="<?php echo gettext("Add Menu set"); ?>"><img src="../../images/add.png" alt="" /> <?php echo gettext("Add Menu set"); ?></a></strong>
+	<button class="serialize" type="submit" title="<?php echo gettext("Apply"); ?>">
+		<img src="../../images/pass.png" alt="" /><strong><?php echo gettext("Apply"); ?></strong>
+	</button>
+	<a href="menu_tab_edit.php?add&amp;menuset=<?php echo urlencode($menuset); ?>" title="<?php echo gettext("Add Menu Items"); ?>">
+		<img src="../../images/add.png" alt="" /> <strong><?php echo gettext("Add Menu Items"); ?></strong>
+	</a>
 	<div class="floatright">
-		<a title="<?php echo gettext('options')?>" href="<?php echo WEBPATH.'/'.ZENFOLDER; ?>/admin-options.php?'page=options&amp;tab=plugin&amp;show-menu_manager#menu_manager">
+		<a href="javascript:newMenuSet();" title="<?php echo gettext("New Menu"); ?>">
+			<img src="../../images/add.png" alt="" /> <strong><?php echo gettext("New Menu"); ?></strong>
+		</a>
+		<a title="<?php echo gettext('Menu Manager options')?>" href="<?php echo WEBPATH.'/'.ZENFOLDER; ?>/admin-options.php?'page=options&amp;tab=plugin&amp;show-menu_manager#menu_manager">
 			<strong><?php echo gettext('Options')?></strong>
 		</a>
 	</div>
@@ -137,17 +170,19 @@ $count = db_result($result, 0);
 		$checkarray = array(
 				gettext('*Bulk actions*') => 'noaction',
 				gettext('Delete') => 'deleteall',
-				gettext('Set to published') => 'showall',
-				gettext('Set to unpublished') => 'hideall'
+				gettext('Show') => 'showall',
+				gettext('Hide') => 'hideall'
 		);
 		?>
 		<span style="float:right">
 			<?php
 				if ($count > 0) {
-					$buttontext = sprintf(gettext("Delete menu set '%s'"),html_encode($menuset));
 					?>
 					<span class="buttons">
-						<strong><a href="javascript:deleteMenuSet();" title="<?php echo $buttontext; ?>"><img src="../../images/fail.png" alt="" /><?php echo $buttontext; ?></a></strong>
+						<strong><a href="javascript:dupMenuSet();" title="<?php printf(gettext('Duplicate %s menu'),$menuset); ?>"><img src="../../images/page_white_copy.png" alt="" /><?php echo gettext("Duplicate menu"); ?></a></strong>
+					</span>
+					<span class="buttons">
+						<strong><a href="javascript:deleteMenuSet();" title="<?php printf(gettext('Delete %s menu'),$menuset);; ?>"><img src="../../images/fail.png" alt="" /><?php echo gettext("Delete menu"); ?></a></strong>
 					</span>
 					<?php
 				}
@@ -159,7 +194,8 @@ $count = db_result($result, 0);
 	</div>
 	<br clear="all" />
 	<div class="subhead">
-		<label style="float: right"><?php echo gettext("Check All"); ?> <input type="checkbox" name="allbox" id="allbox" onclick="checkAll(this.form, 'ids[]', this.checked);" />
+		<label style="float: right">
+			<?php echo gettext("Check All"); ?> <input type="checkbox" name="allbox" id="allbox" onclick="checkAll(this.form, 'ids[]', this.checked);" />
 		</label>
 	</div>
 			<ul class="page-list">

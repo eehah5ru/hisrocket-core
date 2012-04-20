@@ -111,11 +111,11 @@
 		<form name="formAction" id="formAction" method="post" action="<?php echo appendQueryString(CONFIG_URL_IMAGE_UNDO, makeQueryString(array('path'))); ?>">
 			<input type="hidden" name="file_path" id="file_path" value="<?php echo $_GET['path']; ?>" />
 			
-			<p><label  id="label_resize" class="labelMode"><?php echo IMG_MODE_RESIZE; ?></label> <input type="radio" name="mode" value="resize" class="input" checked="checked"  onclick="return changeMode();"/>
-			<label id="label_crop"  class="labelMode"><?php echo IMG_MODE_CROP; ?></label> <input type="radio" name="mode" value="crop" class="input" onclick="return changeMode();" />
-			<label  id="label_rotate"  class="labelMode"><?php echo IMG_MODE_ROTATE; ?></label> <input type="radio" name="mode" value="rotate" class="input" onclick="return changeMode();" />
-			<label  id="label_flip"  class="labelMode"><?php echo IMG_MODE_FLIP; ?></label> <input type="radio" name="mode" value="flip" class="input" onclick="return changeMode();" />
-			 || <label  id="label_constraint"><?php echo IMG_CHECKBOX_CONSTRAINT; ?></label> <input type="checkbox" name="constraint" id="constraint" value="1" class="input" onclick="return toggleConstraint();" />
+			<p><label><?php echo IMG_MODE_RESIZE; ?></label> <input type="radio" name="mode" value="resize" class="input" checked="checked"  onclick="return changeMode();"/>
+			<label><?php echo IMG_MODE_CROP; ?></label> <input type="radio" name="mode" value="crop" class="input" onclick="return changeMode();" />
+			<label><?php echo IMG_MODE_ROTATE; ?></label> <input type="radio" name="mode" value="rotate" class="input" onclick="return changeMode();" />
+			<label><?php echo IMG_MODE_FLIP; ?></label> <input type="radio" name="mode" value="flip" class="input" onclick="return changeMode();" />
+			<label><?php echo IMG_CHECKBOX_CONSTRAINT; ?></label> <input type="checkbox" name="constraint" id="constraint" value="1" class="input" onclick="return toggleConstraint();" />
 			<!--			<label>Watermark:</label> <input type="radio" name="mode" value="watermark" class="input" onclick="return false;" />-->
 			
 			<button id="actionRotateLeft" class="disabledButton" onclick="return leftRotate();" disabled><?php echo IMG_BTN_ROTATE_LEFT; ?></button>

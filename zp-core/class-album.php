@@ -15,41 +15,33 @@ class Album extends MediaObject {
 	var $localpath;				 // Latin1 full server path to the album
 	var $exists = true;    // Does the folder exist?
 	var $images = null;    // Full images array storage.
-	var $subalbums = null; // Full album array storage.
 	var $parent = null;    // The parent album name
 	var $parentalbum = null; // The parent album's album object (lazy)
 	var $gallery;
 	var $searchengine;           // cache the search engine for dynamic albums
-	var $index;
-	var $themeoverride;
-	var $lastimagesort = NULL;  // remember the order for the last album/image sorts
-	var $lastsubalbumsort = NULL;
-	var $albumthumbnail = NULL; // remember the album thumb for the duration of the script
 	var $sidecars = array();	// keeps the list of suffixes associated with this album
-	var $subrights = array();	//	cache for album subrights
-	var $myitem = array();	//	cache for album rights
 	var $manage_rights = MANAGE_ALL_ALBUM_RIGHTS;
 	var $manage_some_rights = ALBUM_RIGHTS;
 	var $view_rights = VIEW_ALBUMS_RIGHTS;
+	protected $subalbums = null; // Full album array storage.
+	protected $index;
+	protected $lastimagesort = NULL;  // remember the order for the last album/image sorts
+	protected $lastsubalbumsort = NULL;
+	protected $albumthumbnail = NULL; // remember the album thumb for the duration of the script
+	protected $subrights = NULL;	//	cache for album subrights
+	protected $dynamic = false;	// will be true for dynamic albums
 
 
 	/**
 	 * Constructor for albums
 	 *
-	 * @param object &$gallery The parent gallery
+	 * @param object $gallery The parent gallery
 	 * @param string $folder8 folder name (UTF8) of the album
 	 * @param bool $cache load from cache if present
 	 * @return Album
 	 */
-	function Album(&$gallery, $folder8, $cache=true, $quiet=false) {
-		if (!is_object($gallery) || strtolower(get_class($gallery)) != 'gallery') {
-			$msg = sprintf(gettext('Bad gallery in instantiation of album %s.'), $folder8);
-			debugLogBacktrace($msg);
-			
-			// trigger_error(html_encode($msg), E_USER_NOTICE);
-
-			$gallery = new Gallery();
-		}
+	function __construct($gallery, $folder8, $cache=true, $quiet=false) {
+		$gallery = new Gallery();
 		$folder8 = sanitize_path($folder8);
 		$folderFS = internalToFilesystem($folder8);
 		$this->gallery = &$gallery;
@@ -60,20 +52,20 @@ class Album extends MediaObject {
 		}
 		if (filesystemToInternal($folderFS) != $folder8) { // an attempt to spoof the album name.
 			$this->exists = false;
-			$msg = sprintf(gettext('Zenphoto encountered an album name spoof attempt: %1$s=>%2$s.'),filesystemToInternal($folderFS),$folder8);
+			$msg = sprintf(gettext('Zenphoto encountered an album name spoof attempt: %1$s=>%2$s.'),html_encode(filesystemToInternal($folderFS)),html_encode($folder8));
 			debugLogBacktrace($msg);
 			trigger_error(html_encode($msg), E_USER_NOTICE);
 			return;
 		}
 		if ($dynamic = hasDynamicAlbumSuffix($folder8)) {
 			$localpath = substr($localpath, 0, -1);
-			$this->set('dynamic', 1);
+			$this->dynamic = true;
 		}
 		// Must be a valid (local) folder:
 		if(!file_exists($localpath) || !($dynamic || is_dir($localpath))) {
 			$this->exists = false;
 			if (!$quiet) {
-				$msg = sprintf(gettext('class-album detected an invalid folder name: %s.'),$folder8);
+				$msg = sprintf(gettext('class-album detected an invalid folder name: %s.'),html_encode($folder8));
 				debugLogBacktrace($msg);
 				trigger_error(html_encode($msg), E_USER_NOTICE);
 			}
@@ -122,7 +114,6 @@ class Album extends MediaObject {
 				if ($new) {
 					$title = $this->get('title');
 					$this->set('title', substr($title, 0, -4)); // Strip the .'.alb' suffix
-					$this->setDateTime(strftime('%Y-%m-%d %H:%M:%S', $this->get('mtime')));
 				}
 				$this->set('dynamic', 1);
 			}
@@ -139,12 +130,14 @@ class Album extends MediaObject {
 	 *
 	 * @return bool
 	 */
-	function setDefaults() {
+	protected function setDefaults() {
 		// Set default data for a new Album (title and parent_id)
 		$parentalbum = $this->getParent();
-		$this->setShow(getOption('album_publish'));
+		$this->setShow($this->gallery->getAlbumPublish());
 		$this->set('mtime', filemtime($this->localpath));
-		$this->setDateTime(strftime('%Y-%m-%d %H:%M:%S', $this->get('mtime')));
+		if ($this->isDynamic() || !$this->gallery->getAlbumUseImagedate()) {
+			$this->setDateTime(strftime('%Y-%m-%d %H:%M:%S', $this->get('mtime')));
+		}
 		$title = trim($this->name);
 		if (!is_null($parentalbum)) {
 			$this->set('parentid', $parentalbum->getAlbumId());
@@ -440,12 +433,12 @@ class Album extends MediaObject {
 	 * @param bool $mine set to true/false to override ownership clause
 	 * @return array
 	 */
-	function sortImageArray($images, $sorttype, $sortdirection, $mine= NULL) {
+	protected function sortImageArray($images, $sorttype, $sortdirection, $mine= NULL) {
 		if (is_null($mine)) {
-			$mine = $this->isMyItem(LIST_RIGHTS);
+			$mine = $this->isMyItem(LIST_RIGHTS | MANAGE_ALL_ALBUM_RIGHTS);
 		}
-		if ($mine && !($mine & (VIEW_ALBUMS_RIGHTS | MANAGE_ALL_ALBUM_RIGHTS))) {	//	check for managed album view unpublished image rights
-			$mine = $this->albumSubRights() & MANAGED_OBJECT_RIGHTS_VIEW_IMAGE;
+		if ($mine && !($mine & (MANAGE_ALL_ALBUM_RIGHTS))) {	//	check for managed album view unpublished image rights
+			$mine = $this->albumSubRights() & MANAGED_OBJECT_RIGHTS_EDIT;
 		}
 		$sortkey = str_replace('`','',$this->getImageSortKey($sorttype));
 		if (($sortkey == '`sort_order`') || ($sortkey == 'RAND()')) { // manual sort is always ascending
@@ -461,17 +454,14 @@ class Album extends MediaObject {
 		$result = query($sql = "SELECT * FROM " . prefix("images") . " WHERE `albumid`= " . $this->id);
 		$results = array();
 		while ($row = db_fetch_assoc($result)) {
-			$results[] = $row;
-		}
-		foreach ($results as $rowkey=>$row) {
 			$filename = $row['filename'];
 			if (($key = array_search($filename,$images)) !== false) {	// the image exists in the filesystem
+				$results[] = $row;
 				unset($images[$key]);
 			} else {																									// the image no longer exists
 				$id = $row['id'];
 				query("DELETE FROM ".prefix('images')." WHERE `id`=$id"); // delete the record
 				query("DELETE FROM ".prefix('comments')." WHERE `type` ='images' AND `ownerid`= '$id'"); // remove image comments
-				unset($results[$rowkey]);
 			}
 		}
 		foreach ($images as $filename) {	// these images are not in the database
@@ -483,6 +473,15 @@ class Album extends MediaObject {
 		// the results are now in the correct order
 		$images_ordered = array();
 		foreach ($results as $key=>$row) { // check for visible
+			switch (checkPublishDates($row)) {
+				case 1:
+					$imageobj = newImage($this,$row['filename']);
+					$imageobj->setShow(0);
+					$imageobj->save();
+				case 2:
+					$row['show'] = 0;
+					break;
+			}
 			if ($row['show'] || $mine) {	// don't display it
 				$images_ordered[] = $row['filename'];
 			}
@@ -530,64 +529,84 @@ class Album extends MediaObject {
 	 * @return Image
 	 */
 	function getAlbumThumbImage() {
+		global $_zp_albumthumb_selector;
 
-		if (!is_null($this->albumthumbnail)) return $this->albumthumbnail;
+		if (!is_null($this->albumthumbnail)) {
+			return $this->albumthumbnail;
+		}
 
 		$albumdir = $this->localpath;
 		$thumb = $this->get('thumb');
+		if (is_null($thumb)) {
+			$this->set('thumb', $thumb = getOption('AlbumThumbSelect'));
+		}
 		$i = strpos($thumb, '/');
 		if ($root = ($i === 0)) {
 			$thumb = substr($thumb, 1); // strip off the slash
 			$albumdir = ALBUM_FOLDER_SERVERPATH;
 		}
-		$shuffle = empty($thumb);
-		$field = getOption('AlbumThumbSelectField');
-		$direction = getOption('AlbumThumbSelectDirection');
-		if (!empty($thumb) && !is_numeric($thumb) && file_exists($albumdir.internalToFilesystem($thumb))) {
-			if ($i===false) {
-				return newImage($this, $thumb);
-			} else {
-				$pieces = explode('/', $thumb);
-				$i = count($pieces);
-				$thumb = $pieces[$i-1];
-				unset($pieces[$i-1]);
-				$albumdir = implode('/', $pieces);
-				if (!$root) { $albumdir = $this->name . "/" . $albumdir; } else { $albumdir = $albumdir . "/";}
-				$this->albumthumbnail = newImage(new Album($this->gallery, $albumdir), $thumb);
-				return $this->albumthumbnail;
-			}
-		} else {
-			$this->getImages(0, 0, $field, $direction);
-			$thumbs = $this->images;
-			if (!is_null($thumbs)) {
-				if ($shuffle) {
-					shuffle($thumbs);
+		if (!empty($thumb) && !is_numeric($thumb)) {
+			if (file_exists($albumdir.internalToFilesystem($thumb))) {
+				if ($i===false) {
+					return newImage($this, $thumb);
+				} else {
+					$pieces = explode('/', $thumb);
+					$i = count($pieces);
+					$thumb = $pieces[$i-1];
+					unset($pieces[$i-1]);
+					$albumdir = implode('/', $pieces);
+					if (!$root) {
+						$albumdir = $this->name . "/" . $albumdir;
+					} else {
+						$albumdir = $albumdir . "/";
+					}
+					$this->albumthumbnail = newImage(new Album($this->gallery, $albumdir), $thumb);
+					return $this->albumthumbnail;
 				}
-				$mine = $this->isMyItem(LIST_RIGHTS);
-				$other = NULL;
-				while (count($thumbs) > 0) {	// first check for images
-					$thumb = array_shift($thumbs);
-					$thumb = newImage($this, $thumb);
-					if ($mine || $thumb->getShow()) {
-						if (isImagePhoto($thumb)) {	// legitimate image
+			} else {
+				$this->set('thumb', $thumb = getOption('AlbumThumbSelect'));
+			}
+		}
+		$shuffle = empty($thumb);
+		$field = $_zp_albumthumb_selector[(int) $thumb]['field'];
+		$direction = $_zp_albumthumb_selector[(int) $thumb]['direction'];
+		$this->getImages(0, 0, $field, $direction);
+		$thumbs = $this->images;
+		if (!is_null($thumbs)) {
+			if ($shuffle) {
+				shuffle($thumbs);
+			}
+			$mine = $this->isMyItem(LIST_RIGHTS);
+			$other = NULL;
+			while (count($thumbs) > 0) {
+				// first check for images
+				$thumb = array_shift($thumbs);
+				$thumb = newImage($this, $thumb);
+				if ($mine || $thumb->getShow()) {
+					if (isImagePhoto($thumb)) {
+						// legitimate image
+						$this->albumthumbnail = $thumb;
+						return $this->albumthumbnail;
+					} else {
+						if (!is_null($thumb->objectsThumb)) {
+							//	"other" image with a thumb sidecar
 							$this->albumthumbnail = $thumb;
 							return $this->albumthumbnail;
 						} else {
-							if (!is_null($thumb->objectsThumb)) {	//	"other" image with a thumb sidecar
-								$this->albumthumbnail = $thumb;
-								return $this->albumthumbnail;
-							} else {
-								if (is_null($other)) $other = $thumb;
+							if (is_null($other)) {
+								$other = $thumb;
 							}
 						}
 					}
 				}
-				if (!is_null($other)) {	//	"other" image, default thumb
-					$this->albumthumbnail = $other;
-					return $this->albumthumbnail;
-				}
+			}
+			if (!is_null($other)) {
+				//	"other" image, default thumb
+				$this->albumthumbnail = $other;
+				return $this->albumthumbnail;
 			}
 		}
+
 		// Otherwise, look in sub-albums.
 		$subalbums = $this->getAlbums();
 		if (!is_null($subalbums)) {
@@ -713,7 +732,7 @@ class Album extends MediaObject {
 	 *
 	 * @param string $newfolder The folder name of the new parent
 	 */
-	function updateParent($newfolder) {
+	private function updateParent($newfolder) {
 		$this->name = $newfolder;
 		$parentname = dirname($newfolder);
 		if ($parentname == '/' || $parentname == '.') $parentname = '';
@@ -733,6 +752,7 @@ class Album extends MediaObject {
 	 * @return bool
 	 */
 	function remove() {
+		$rslt = false;
 		if (parent::remove()) {
 			if (!$this->isDynamic()) {
 				foreach ($this->getAlbums() as $folder) {
@@ -768,12 +788,13 @@ class Album extends MediaObject {
 				}
 			}
 			if ($this->isDynamic()) {
-				return @unlink($this->localpath) && $success;
+				$rslt = @unlink($this->localpath) && $success;
 			} else {
-				return @rmdir($this->localpath) && $success;
+				$rslt = @rmdir($this->localpath) && $success;
 			}
 		}
-		return false;
+		clearstatcache();
+		return $rslt;
 	}
 
 	/**
@@ -829,21 +850,17 @@ class Album extends MediaObject {
 					//rename the cache folder
 					$cacherename = @rename(SERVERCACHE . '/' . $oldfolder, SERVERCACHE . '/' . $newfolder);
 					// Then: go through the db and change the album (and subalbum) paths. No ID changes are necessary for a move.
-					$sql = "UPDATE " . prefix('albums') . " SET folder=" . db_quote($newfolder) . " WHERE `id` = ".$this->getAlbumID();
-					$success = $success && query($sql);
-					if ($success) {
 						// Get the subalbums.
-						$sql = "SELECT id, folder FROM " . prefix('albums') . " WHERE folder LIKE ".db_quote($oldfolder.'%');
-						$result = query_full_array($sql);
-						foreach ($result as $subrow) {
-							$newsubfolder = $subrow['folder'];
-							$newsubfolder = $newfolder . substr($newsubfolder, strlen($oldfolder));
-							$sql = "UPDATE ".prefix('albums'). " SET folder=".db_quote($newsubfolder)." WHERE id=".$subrow['id'];
-							if (query($sql)) {
-								zp_apply_filter('album_rename_move', $subrow['folder'], $newsubfolder);
-							} else {
-								$success = false;
-							}
+					$sql = "SELECT id, folder FROM " . prefix('albums') . " WHERE folder LIKE ".db_quote($oldfolder.'/%');
+					$result = query_full_array($sql);
+					foreach ($result as $subrow) {
+						$newsubfolder = $subrow['folder'];
+						$newsubfolder = $newfolder . substr($newsubfolder, strlen($oldfolder));
+						$sql = "UPDATE ".prefix('albums'). " SET folder=".db_quote($newsubfolder)." WHERE id=".$subrow['id'];
+						if (query($sql)) {
+							zp_apply_filter('album_rename_move', $subrow['folder'], $newsubfolder);
+						} else {
+							$success = false;
 						}
 					}
 				}
@@ -1039,27 +1056,29 @@ class Album extends MediaObject {
 	 * @param  $dirs Whether or not to return directories ONLY with the file array.
 	 * @return array
 	 */
-	function loadFileNames($dirs=false) {
-		if ($this->isDynamic()) {  // there are no 'real' files
-			return array();
-		}
+	private function loadFileNames($dirs=false) {
 		$albumdir = $this->localpath;
-		if (!is_dir($albumdir) || !is_readable($albumdir)) {
+		$dir = @opendir($albumdir);
+		if (!$dir) {
+			if ($this->isDynamic()) {
+				// there are no 'real' files
+				return array();
+			}
 			if (!is_dir($albumdir)) {
-				$msg = sprintf(gettext("Error: The album named %s cannot be found."), $this->name);
+				$msg = sprintf(gettext("Error: The album named %s cannot be found."), html_encode($this->name));
 			} else {
-				$msg = sprintf(gettext("Error: The album %s is not readable."), $this->name);
+				$msg = sprintf(gettext("Error: The album %s is not readable."), html_encode($this->name));
 			}
 			zp_error($msg,false);
 			return array();
 		}
-		$dir = opendir($albumdir);
+
 		$files = array();
 		$others = array();
 
 		while (false !== ($file = readdir($dir))) {
 			$file8 = filesystemToInternal($file);
-			if ($dirs && (is_dir($albumdir.$file) && (substr($file, 0, 1) != '.') || hasDynamicAlbumSuffix($file))) {
+			if ($dirs && ((substr($file, 0, 1) != '.' && is_dir($albumdir.$file)) || hasDynamicAlbumSuffix($file))) {
 				$files[] = $file8;
 			} else if (!$dirs && is_file($albumdir.$file)) {
 				if (is_valid_other_type($file)) {
@@ -1076,9 +1095,11 @@ class Album extends MediaObject {
 			foreach($others as $other) {
 				$others_root = substr($other, 0, strrpos($other,"."));
 				foreach($files as $image) {
-					$image_root = substr($image, 0, strrpos($image,"."));
-					if ($image_root == $others_root && $image != $other && is_valid_image($image)) {
-						$others_thumbs[] = $image;
+					if ($image != $other) {
+						$image_root = substr($image, 0, strrpos($image,"."));
+						if ($image_root == $others_root && is_valid_image($image)) {
+							$others_thumbs[] = $image;
+						}
 					}
 				}
 			}
@@ -1098,7 +1119,7 @@ class Album extends MediaObject {
 	 * @return bool
 	 */
 	function isDynamic() {
-		return $this->get('dynamic');
+		return $this->dynamic;
 	}
 
 	/**
@@ -1191,38 +1212,37 @@ class Album extends MediaObject {
 	 * returns NULL if not a managed album
 	 */
 	function albumSubRights() {
-		if (!empty($this->subrights)) {
-			return $this->subrights[0];
+		if (!is_null($this->subrights)) {
+			return $this->subrights;
 		}
 		global $_zp_admin_album_list;
 		if (zp_loggedin(MANAGE_ALL_ALBUM_RIGHTS)) {
-			$this->subrights[0] = MANAGED_OBJECT_RIGHTS_EDIT | MANAGED_OBJECT_RIGHTS_UPLOAD | MANAGED_OBJECT_RIGHTS_VIEW_IMAGE;
-			return $this->subrights[0];
+			$this->subrights = MANAGED_OBJECT_RIGHTS_EDIT | MANAGED_OBJECT_RIGHTS_UPLOAD;
+			return $this->subrights;
 		}
 		getManagedAlbumList();
-		if (count($_zp_admin_album_list) == 0) {
-			$this->subrights[0] =  false;
-			return $this->subrights[0];
-		}
-		$desired_folders = explode('/', $this->name);
-		foreach ($_zp_admin_album_list as $adminalbum=>$rights) { // see if it is one of the managed folders or a subfolder there of
-			$admin_folders = explode('/', $adminalbum);
-			$level = 0;
-			$ok = true;
-			foreach ($admin_folders as $folder) {
-				if ($level >= count($desired_folders) || $folder != $desired_folders[$level]) {
-					$ok = false;
-					break;
+		if (count($_zp_admin_album_list) > 0) {
+			$desired_folders = explode('/', $this->name);
+			foreach ($_zp_admin_album_list as $adminalbum=>$rights) {
+				// see if it is one of the managed folders or a subfolder there of
+				$admin_folders = explode('/', $adminalbum);
+				$level = 0;
+				$ok = true;
+				foreach ($admin_folders as $folder) {
+					if ($level >= count($desired_folders) || $folder != $desired_folders[$level]) {
+						$ok = false;
+						break;
+					}
+					$level++;
 				}
-				$level++;
-			}
-			if ($ok) {
-				$this->subrights[0] =  $rights;
-				return $this->subrights[0];
+				if ($ok) {
+					$this->subrights =  $rights;
+					return $this->subrights;
+				}
 			}
 		}
-		$this->subrights[0] =  NULL;
-		return $this->subrights[0];
+		$this->subrights =  NULL;
+		return $this->subrights;
 	}
 
 	/**
@@ -1238,16 +1258,18 @@ class Album extends MediaObject {
 		}
 		if (zp_loggedin($action)) {
 			$subRights = $this->albumSubRights();
-			if (!is_null($subRights)) {
-				$albumrights = 0;
+			if (is_null($subRights)) {
+				// no direct rights, but if this is a private gallery and the album is published he should be allowed to see it
+				if (GALLERY_SECURITY == 'private' && $this->getShow() && $action == LIST_RIGHTS) {
+					return LIST_RIGHTS;
+				}
+			} else {
+				$albumrights = LIST_RIGHTS;
 				if ($subRights & (MANAGED_OBJECT_RIGHTS_EDIT)) {
 					$albumrights = $albumrights | ALBUM_RIGHTS;
 				}
 				if ($subRights & MANAGED_OBJECT_RIGHTS_UPLOAD) {
 					$albumrights = $albumrights | UPLOAD_RIGHTS;
-				}
-				if ($subRights & MANAGED_OBJECT_RIGHTS_VIEW_IMAGE) {
-					$albumrights = $albumrights | LIST_RIGHTS;
 				}
 				if ($action & $albumrights) {
 					return ($_zp_loggedin ^ (ALBUM_RIGHTS | UPLOAD_RIGHTS)) | $albumrights;
@@ -1300,11 +1322,11 @@ class Album extends MediaObject {
 	}
 
 	function getUpdatedDate() {
-		return $this->get('updareddate');
+		return $this->get('updateddate');
 	}
 
 	function setUpdatedDate($date) {
-		return $this->set('updareddate',$date);
+		return $this->set('updateddate',$date);
 	}
 
 }

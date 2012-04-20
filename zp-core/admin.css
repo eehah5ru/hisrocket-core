@@ -142,19 +142,50 @@ code {
 
 /* Menu
 ------------------------------ */
-.nav {
-	list-style-type: none;
-	padding: 0;
+
+/**
+ * Horizontal CSS Drop-Down Menu Module - adaption acrylian for Zenphoto
+ *
+ * @file		dropdown.css
+ * @package		Dropdown
+ * @version		0.8
+ * @type		Transitional
+ * @stacks		597-599
+ * @browsers	Windows: IE6+, Opera7+, Firefox1+
+ *				Mac OS: Safari2+, Firefox2+
+ *
+ * @link		http://www.lwis.net/
+ * @copyright	2006-2008 Live Web Institute
+ *
+ */
+
+ul.nav,
+ul.nav li,
+ul.nav ul {
+ list-style: none;
+ margin: 0;
+ padding: 0;
+}
+
+ul.nav {
+ position: relative;
+ z-index: 597;
+ float: left;
+ padding: 0;
 	_padding: 0 0 0 30px;
 	margin: 0 0 0 30px;
 	height: 30px;
 }
 
-.nav li {
-	display: inline;
+ul.nav li {
+ float: left;
+ line-height: 1.3em;
+ vertical-align: middle;
+ zoom: 1;
 }
 
-.nav li a {
+
+ul.nav li a {
 	border-top: 1px solid #CBCBCB;
 	border-left: 1px solid #CBCBCB;
 	border-right: 1px solid #CBCBCB;
@@ -178,7 +209,14 @@ code {
 	border-radius: 5px 5px 0px 0px;
 }
 
-.nav li a:hover {
+ul.nav li.hover,
+ul.nav li:hover {
+ position: relative;
+ z-index: 599;
+ cursor: default;
+}
+
+ul.nav li a:hover {
 	border-top: 1px solid #CBCBCB;
 	border-left: 1px solid #CBCBCB;
 	border-right: 1px solid #CBCBCB;
@@ -191,7 +229,7 @@ code {
 	_top: 1px; /* IE Only */
 }
 
-.nav li.current a {
+ul.nav li.current a {
 	border-top: 1px solid #CBCBCB;
 	border-left: 1px solid #CBCBCB;
 	border-right: 1px solid #CBCBCB;
@@ -207,7 +245,7 @@ code {
 	_top: 1px; /* IE Only */
 }
 
-.nav li.currentsubtab a {
+ul.nav li.currentsubtab a {
 	border-top: 1px solid #CBCBCB;
 	border-left: 1px solid #CBCBCB;
 	border-right: 1px solid #CBCBCB;
@@ -221,18 +259,54 @@ code {
 	_top: 1px; /* IE Only */
 }
 
-.nav li   . a:hover {
-	border-top: 1px solid #CBCBCB;
-	border-left: 1px solid #CBCBCBF;
-	border-right: 1px solid #CBCBCB;
-	color: #000;
-	background-color: #F7F8F9;
+ul.nav ul {
+ visibility: hidden;
+ position: absolute;
+ top: 30px;
+ left: 0;
+ z-index: 598;
+ width: 100%;
+
+}
+
+ul.nav ul li {
+ float: none;
+
+}
+/* These are the dropdown sublist entries */
+ul.nav ul.subdropdown li a {
+	border: 1px solid #CBCBCB;
+	-moz-border-radius: 0px;
+	-khtml-border-radius: 0px;
+	-webkit-border-radius: 0px;
+	border-radius: 0px;
+	margin: 0;
+	padding: 6px 12px;
+	top: 0;
+	min-width: 100px;
 	height: 21px;
 	_height: 24px;
-	position: relative;
-	top: -3px;
-	_top: 1px; /* IE Only */
+	background: #F8F8F8;
 }
+
+ul.nav ul.subdropdown li a:hover {
+ border: 1px solid #CBCBCB;
+ margin: 0;
+ padding: 6px 12px;
+ top: 0;
+ height: 21px;
+ _height: 24px;
+}
+
+ul.nav ul ul {
+ top: 1px;
+ left: 99%;
+}
+
+ul.nav li:hover > ul {
+ visibility: visible;
+}
+
 
 .subnav {
 	list-style-type: none;
@@ -311,22 +385,6 @@ code {
 	_top: 1px; /* IE Only */
 }
 
-/* DROP DOWN TEST CSS INCOMPLETE */
-#subdropdownnav {
-	text-align: center;
-	position: relative;
-	top: 120px;
-	width: 100%;
-	background-color: white;
-}
-
-#subdropdownnav li {
-
-}
-
-#subdropdownnav li a,#subdropdownnav li a:hover {
-
-}
 
 /* Messages
 ------------------------------ */
@@ -378,6 +436,10 @@ code {
 	border-left: 1px solid #996600;
 	border-right: 1px solid #996600;
 	border-bottom: 5px solid #996600;
+	-moz-border-radius: 5px;
+	-khtml-border-radius: 5px;
+	-webkit-border-radius: 5px;
+	border-radius: 5px;
 	margin-bottom: 10px;
 	font-size: 100%;
 }
@@ -482,19 +544,23 @@ table.bordered .subhead {
 	border-top: 1px solid #cccccc;
 }
 
-table.bordered td {
-	padding: 8px 16px;
-	margin: 0px;
-	background-color: #fff;
-	border-bottom: 0px solid #E5E5E5;
-}
-
 table.bordered tr td {
 	padding: 8px 16px;
 	margin: 0px;
 	background-color: #fff;
-	border-bottom: 1px solid #ECECEC;
+	border-bottom: 1px solid #E5E5E5;
 }
+
+/*****
+/* some additions for the plugins and options tables, easier to read if top aligned IMHO */
+table.options td {
+	padding: 16px 16px 10px 16px !important;
+	vertical-align: top;
+}
+table.options td p {
+ margin-top: 0;
+}
+/*******/
 
 table.bordered tr.alt1 td {
 	background-color: #ECF1F2;
@@ -655,6 +721,11 @@ textarea {
 	font-family: Arial, Helvetica, sans-serif;
 	font-size: 100%;
 }
+table.mceLayout td {
+margin: 0 !important;
+padding: 0 !important;
+background-color: transparent !important;
+}
 
 input.tags {
 	width: 408px;
@@ -699,16 +770,8 @@ input.tags {
 	padding: 0px;
 }
 
-#overview-maint_l {
-	float: left;
-	width: 50%;
-	margin: 5px 0px 0px 16px;
-}
-
-#overview-maint_r {
-	float: left;
-	width: 45%;
-	margin: 5px 0px 0px 0px;
+.overview_utility_buttons {
+	padding-bottom: 10px;
 }
 
 #overview-comments,#overview-gallerystats,#overview-info,#overview-news
@@ -738,6 +801,25 @@ input.tags {
 	margin-bottom: .5em;
 	line-height: 1.3em;
 	margin-left: 0px;
+}
+
+#overview-utility fieldset {
+	padding: 10px 5px 5px 5px;
+	margin: 15px;
+	border: 1px solid #cccccc;
+}
+
+#overview-utility fieldset legend {
+	margin: 0 5px 0px 5px;
+	padding: 0 5px 0 5px;
+	font-weight: bold;
+	text-transform: capitalize;
+}
+
+#overview-utility form {
+	max-height: 100px;
+	float: left;
+	padding-left: 8px;
 }
 
 #overview-info ul.plugins {
@@ -771,9 +853,6 @@ input.tags {
 	font-size: 100%;
 }
 
-.fileuploadbox {
-	margin-bottom: 5px;
-}
 
 #albumselect {
 	padding: 10px;
@@ -840,8 +919,10 @@ acronym {
 ------------------------------ */
 #loginform {
 	padding: 10px;
-	width: 300px;
+	width: 370px;
 	margin: 25px auto;
+	margin-top: 15%;
+	margin-left: 0 auto;
 	font-size: 100%;
 	background: #F7F8F9;
 	border-top: 1px solid #BAC9CF;
@@ -852,6 +933,34 @@ acronym {
 	-khtml-border-radius: 5px 5px 5px 5px;
 	-webkit-border-radius: 5px 5px 5px 5px;
 	border-radius: 5px 5px 5px 5px;
+}
+
+#loginform fieldset {
+	-moz-border-radius: 5px 5px 5px 5px;
+	-khtml-border-radius: 5px 5px 5px 5px;
+	-webkit-border-radius: 5px 5px 5px 5px;
+	border-radius: 5px 5px 5px 5px;
+	border: 1px solid lightgray;
+	padding:10px;
+	text-align:center;
+}
+
+#loginform input.textfield {
+	margin: 0px;
+	width:270px;
+	font-size: 100%;
+	padding: 4px;
+}
+
+.logon_form_text {
+	padding: 4px;
+	text-align:left;
+	margin-left: 10px;
+	margin-left: 5px;
+}
+
+.logon_link {
+	text-align:center;
 }
 
 .button {
@@ -865,34 +974,6 @@ label {
 
 label:hover {
 	color: #000;
-}
-
-#loginform {
-	margin-top: 15%;
-	margin-left: 0 auto;
-}
-
-#loginform fieldset {
-		-moz-border-radius: 5px 5px 5px 5px;
-	-khtml-border-radius: 5px 5px 5px 5px;
-	-webkit-border-radius: 5px 5px 5px 5px;
-	border-radius: 5px 5px 5px 5px;
-	border: 1px solid lightgray;
-}
-
-#loginform input.textfield {
-	margin: 0px;
-	font-size: 100%;
-	padding: 4px;
-}
-
-#loginform table {
-	margin: 0px auto;
-	border: 0px;
-}
-
-#loginform td {
-	padding: 4px;
 }
 
 /* Thumbnail Preview selectbox effect.
@@ -1156,6 +1237,44 @@ button.positive,.buttons a.positive {
 * html .tagchecklist label {
 	height: 1%;
 }
+.resizeable_tagchecklist li {
+	background: none;
+	padding-left: 0;
+	text-align: left;
+}
+
+/* CSS for tag checklists */
+.resizeable_tagchecklist hr {
+	padding: 0;
+	margin-left: 0px;
+	margin-right: 0px;
+	margin-top: 0px;
+	margin-bottom: 0px;
+}
+
+.resizeable_tagchecklist {
+	border: 1px solid #ccc;
+	list-style: none;
+	height: 120px;
+	width: 255px;
+	overflow: auto;
+	background-color: white;
+}
+
+.resizeable_tagchecklist,.resizeable_tagchecklist li {
+	margin: 0;
+	padding: 0;
+	border-bottom: 1px dotted #BAC9CF;
+}
+
+.resizeable_tagchecklist label:hover, .resizeable_tagchecklist li:hover, .resizeable_tagchecklist li label.hover {
+	background: #F1F2F3;
+	color: #333;
+}
+
+* html .resizeable_tagchecklist label {
+	height: 1%;
+}
 
 #mass_tags_data {
 	text-align: left;
@@ -1258,8 +1377,8 @@ button.positive,.buttons a.positive {
 .searchchecklist {
 	border: 1px solid #ccc;
 	list-style: none;
-	height: 6em;
-	width: 310px;
+	height: 120px;
+	width: 350px;
 	overflow: auto;
 	background-color: white;
 	margin: 0;
@@ -1727,25 +1846,30 @@ span.tagMatches span {
 	border-radius: 5px;
 }
 
+
 .box-rights {
 	width: 460px;
 	margin: 0 0 10px 0;
 	padding: 0px 0px 0px 0px;
 }
 
+fieldset,
 .box-rights fieldset {
 	padding: 5px;
-	border: 1px solid gray;
+	border: 1px solid darkgray;
 	-moz-border-radius: 05px;
 	-khtml-border-radius: px;
 	-webkit-border-radius: 5px;
 	border-radius: 5px;
+	margin-bottom: 5px;
+	line-height: 20px;
 }
 
 .box-rights legend {
 	text-weight: bold;
 	color: black;
 }
+
 
 .box-rights fieldset {
 	margin-bottom: 15px;
@@ -1760,14 +1884,6 @@ span.tagMatches span {
 .box-rights strong {
 	display: block;
 	margin-bottom: 10px;
-}
-
-/* drop-down menus */
-#jsddm li ul {
-	margin: 0;
-	padding: 0;
-	position: absolute;
-	visibility: hidden;
 }
 
 /* short checklist */
@@ -1945,11 +2061,28 @@ button.positive,.log_buttons a.positive {
 	text-align: left;
 }
 
+
+.pluginextrashow p.buttons,
+.pluginextrahide p.buttons {
+	display: inline;
+}
+
 .metadata_table {
 	table-layout: fixed;
-	width: 320px;
 	border: 1px solid #BAC9CF;
 	word-wrap: break-word;
+}
+
+.metadata_container {
+	width: 350px;
+	height: 320px;
+	overflow:scroll;
+	overflow-x:hidden;
+}
+
+.resizeable_metadata {
+	height=240px;
+	overflow:scroll;
 }
 
 /* Codeblock fields tabs
@@ -2161,15 +2294,16 @@ div.bordered {
 
 div.bordered .headline {
 	font-weight: bold;
-	padding: 8px 10px 10px 10px;
+	padding: 8px 10px 13px 10px;
 	border-bottom: 2px solid #cccccc;
 	background: #ECF1F2;
 	background-image: url(images/admin-headlineback.jpg);
 	background-repeat: repeat-x;
+	vertical-align: middle;
 }
 
 div.bordered .subhead  {
-padding-top: 20px;
+padding-top: 5px;
 padding-right: 20px;
 }
 
@@ -2259,4 +2393,9 @@ div.bordered .page-list_row .page-list_icon .checkbox {
 
 .floatleft {
 	float: left !important;
+}
+
+img.zp_logoicon {
+position: relative;
+top: 3px;
 }

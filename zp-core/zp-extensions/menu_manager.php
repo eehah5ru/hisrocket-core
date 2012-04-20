@@ -9,12 +9,13 @@
  * display structure. Standard Zenphoto functions like the breadcrumb functions or the next_album()
  * loop for example will NOT take care of this menu's structure!
  *
+ * @author Malte Müller (acrylian), Stephen Billard (sbillard)
  * @package plugins
  */
 $plugin_is_filter = 5|ADMIN_PLUGIN|THEME_PLUGIN;
 $plugin_description = gettext("A menu creation facility. The <em>Menu</em> tab admin interface lets you create arbitrary menu trees.");
 $plugin_author = "Malte Müller (acrylian), Stephen Billard (sbillard)";
-$plugin_version = '1.4.1';
+$plugin_version = '1.4.2';
 $option_interface = 'menu_manager';
 
 if (OFFSET_PATH) {
@@ -178,6 +179,8 @@ function checkChosenItemStatus() {
 function getItemTitleAndURL($item) {
 	$gallery = new Gallery();
 	$array = array();
+	$valid = true;
+	$title = get_language_string($item['title']);
 	switch ($item['type']) {
 		case "galleryindex":
 			$array = array("title" => get_language_string($item['title']),"url" => WEBPATH,"name" => WEBPATH,'protected'=>false);
@@ -188,7 +191,7 @@ function getItemTitleAndURL($item) {
 			$dynamic = hasDynamicAlbumSuffix($folderFS);
 			$valid = file_exists($localpath) && ($dynamic || is_dir($localpath));
 			if(!$valid || strpos($localpath, '..') !== false) {
-				$title = NULL;
+				$valid = false;
 				$url = '';
 				$protected = 0;
 			} else {
@@ -208,7 +211,7 @@ function getItemTitleAndURL($item) {
 				$protected = $obj->isProtected();
 				$title = $obj->getTitle();
 			} else {
-				$title = NULL;
+				$valid = false;
 				$url = '';
 				$protected = 0;
 			}
@@ -219,14 +222,15 @@ function getItemTitleAndURL($item) {
 			$array = array("title" => get_language_string($item['title']),"url" => $url,"name" => $url,'protected'=>false);
 			break;
 		case "zenpagecategory":
-			$obj = query_single_row("SELECT title FROM ".prefix('news_categories')." WHERE titlelink = '".$item['link']."'",false);
+			$sql = "SELECT title FROM ".prefix('news_categories')." WHERE titlelink = '".$item['link']."'";
+			$obj = query_single_row($sql,false);
 			if ($obj) {
 				$obj = new ZenpageCategory($item['link']);
 				$title = $obj->getTitle();
 				$protected = $obj->isProtected();
 				$url = rewrite_path("/news/category/".$item['link'],"/index.php?p=news&amp;category=".$item['link']);
 			} else {
-				$title = NULL;
+				$valid = false;
 				$url = '';
 				$protected = 0;
 			}
@@ -237,9 +241,8 @@ function getItemTitleAndURL($item) {
 			$root = SERVERPATH.'/'.THEMEFOLDER.'/'.$themename.'/';
 			if (file_exists($root.$item['link'].'.php')) {
 				$url = rewrite_path("/page/".$item['link'],"/index.php?p=".$item['link']);
-				$title = get_language_string($item['title']);
 			} else {
-				$title = NULL;
+				$valid = false;
 				$url = '';
 			}
 			$array = array("title"=>$title,"url" => $url,"name"=>$item['link'],'protected'=>false);
@@ -255,6 +258,7 @@ function getItemTitleAndURL($item) {
 			break;
 	}
 	$limit = MENU_TRUNCATE_STRING;
+	$array['valid'] = $valid;
 	if ($limit) {
 		$array['title'] = shortenContent($array['title'],$limit,MENU_TRUNCATE_INDICATOR);
 	}
@@ -734,9 +738,8 @@ function submenuOf($link, $menuset='default') {
  * @param string $menuset current menuset
  */
 function createMenuIfNotExists($menuitems, $menuset='default') {
-	$sql = "SELECT COUNT(id) FROM ". prefix('menu') .' WHERE menuset='.db_quote($menuset);
-	$result = query($sql);
-	if (db_result($result, 0)==0) {	// there was not an existing menu set
+	$count = db_count('menu','WHERE menuset='.db_quote($menuset));
+	if ($count==0) {	// there was not an existing menu set
 		require_once(dirname(__FILE__).'/menu_manager/menu_manager-admin-functions.php');
 		$success = 1;
 		$orders = array();
@@ -759,12 +762,12 @@ function createMenuIfNotExists($menuitems, $menuset='default') {
 				case 'all_items':
 					$orders[$nesting]++;
 					query("INSERT INTO ".prefix('menu')." (`title`,`link`,`type`,`show`,`menuset`,`sort_order`) ".
-								"VALUES ('".gettext('Home')."', '".WEBPATH.'/'.	"','galleryindex','1',".db_quote($menuset).',"'.$orders.'"',true);
+								"VALUES ('".gettext('Home')."', '".WEBPATH.'/'.	"','galleryindex','1',".db_quote($menuset).','.db_quote($orders),true);
 					$orders[$nesting] = addAlbumsToDatabase($menuset,$orders);
 					if(getOption('zp_plugin_zenpage')) {
 						$orders[$nesting]++;
 						query("INSERT INTO ".prefix('menu')." (title`,`link`,`type`,`show`,`menuset`,`sort_order`) ".
-									"VALUES ('".gettext('News index')."', '".rewrite_path('news','?p=news').	"','zenpagenewsindex','1',".db_quote($menuset).',"'.sprintf('%03u',$base+1).'"',true);
+									"VALUES ('".gettext('News index')."', '".rewrite_path('news','?p=news').	"','zenpagenewsindex','1',".db_quote($menuset).','.db_quote(sprintf('%03u',$base+1)),true);
 						$orders[$nesting] = addPagesToDatabase($menuset, $orders)+1;
 						$orders[$nesting] = addCategoriesToDatabase($menuset,$orders);
 					}
@@ -869,7 +872,7 @@ function createMenuIfNotExists($menuitems, $menuset='default') {
 									"VALUES (".db_quote($result['title']).
 									", ".db_quote($result['link']).
 									",".db_quote($result['type']).",".$result['show'].
-									",".db_quote($menuset).",'$sort_order',$includeli)";
+									",".db_quote($menuset).",".db_quote($sort_order).",$includeli)";
 				if (!query($sql, false)) {
 					$success = -2;
 					debugLog(sprintf(gettext('createMenuIfNotExists item %1$s query (%2$s) failed: %3$s.'),$key, $sql, db_error()));
@@ -943,8 +946,6 @@ function printCustomMenu($menuset='default', $option='list',$css_id='',$css_clas
 		$itemURL = $itemarray['url'];
 		$itemtitle = $itemarray['title'];
 		$level = max(1,count(explode('-', $item['sort_order'])));
-		// omit all submenus
-		if ($level > 1) continue;
 		$process = (($level <= $showsubs && $option == "list") // user wants all the pages whose level is <= to the parameter
 								|| ($option == 'list' || $option == 'list-top') && $level==1 // show the top level
 								|| (($option == 'list' || ($option == 'omit-top' && $level>1))

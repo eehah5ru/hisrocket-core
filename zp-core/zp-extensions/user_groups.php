@@ -2,6 +2,7 @@
 /**
  * Provides rudimentary user groups
  *
+ * @author Stephen Billard (sbillard)
  * @package plugins
  * @subpackage usermanagement
  */
@@ -11,7 +12,7 @@
 $plugin_is_filter = 5|ADMIN_PLUGIN;
 $plugin_description = gettext("Provides rudimentary user groups.");
 $plugin_author = "Stephen Billard (sbillard)";
-$plugin_version = '1.4.1';
+$plugin_version = '1.4.2';
 
 zp_register_filter('admin_tabs', 'user_groups_admin_tabs');
 zp_register_filter('admin_alterrights', 'user_groups_admin_alterrights');
@@ -92,11 +93,8 @@ function user_groups_edit_admin($html, $userobj, $i, $background, $current) {
 		$albumlist = array();
 		$allalb = array();
 		foreach ($gallery->getAlbums() as $folder) {
-			if (hasDynamicAlbumSuffix($folder)) {
-				$name = substr($folder, 0, -4); // Strip the .'.alb' suffix
-			} else {
-				$name = $folder;
-			}
+			$alb = new Album($gallery, $folder);
+			$name = $alb->getTitle();
 			$albumlist[$name] = $folder;
 			$allalb[] = "'#managed_albums_".$i.'_'.postIndexEncode($folder)."'";
 		}

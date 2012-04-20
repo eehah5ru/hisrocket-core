@@ -2,6 +2,7 @@
 /**
  * A plugin to print the most common html meta tags to the head of your site's pages using
  * general existing Zenphoto info like gallery description, tags or Zenpage news categories.
+ * It also has support for "<link rel="canonical" href="" />"
  *
  * Just enable the plugin and the meta data will be inserted into your <head> section.
  * You can choose on the plugin's admin option what tags you want to be printed.
@@ -12,7 +13,7 @@
 
 $plugin_description = gettext("A plugin to print the most common HTML meta tags to the head of your site's pages. Tags are selected from existing Zenphoto info such as gallery description, tags, or Zenpage news categories.");
 $plugin_author = "Malte Müller (acrylian)";
-$plugin_version = '1.4.1';
+$plugin_version = '1.4.2';
 $option_interface = 'htmlmetatags';
 
 if (in_context(ZP_INDEX)) {
@@ -49,6 +50,7 @@ class htmlmetatags {
 		setOptionDefault('htmlmeta_name-expires', '1');
 		setOptionDefault('htmlmeta_name-generator', '1');
 		setOptionDefault('htmlmeta_name-date', '1');
+		setOptionDefault('htmlmeta_canonical-url', '0');
 	}
 
  // Gettext calls are removed because some terms like "noindex" are fixed terms that should not be translated so user know what setting they make.
@@ -66,6 +68,8 @@ class htmlmetatags {
 									'desc' => gettext("Request the crawler to revisit the page after x days.")),
 		gettext('Expires') => array('key' => 'htmlmeta_expires', 'type' => OPTION_TYPE_TEXTBOX,
 									'desc' => gettext("When the page should be loaded directly from the server and not from any cache. You can either set a date/time in international date format <em>Sat, 15 Dec 2001 12:00:00 GMT (example)</em> or a number. A number then means seconds, the default value <em>43200</em> means 12 hours.")),
+		gettext('Canonical URL link') => array('key' => 'htmlmeta_canonical-url', 'type' => OPTION_TYPE_CHECKBOX,
+									'desc' => gettext("This adds a link element to the head of each page with a <em>canonical url</em>.")),
 		gettext('HTML meta tags') => array('key' => 'htmlmeta_tags', 'type' => OPTION_TYPE_CHECKBOX_UL,
 										"checkboxes" => array(
 												"http-equiv='language'" => "htmlmeta_http-equiv-language",
@@ -89,21 +93,26 @@ class htmlmetatags {
 												"name='revisit-after'" => "htmlmeta_name-revisit-after",
 												"name='expires'" => "htmlmeta_name-expires",
 												"name='date'" => "htmlmeta_name-date",
-												"name='DC.title'" => "htmlmeta_name-DC.title",
-												"name='DC.keywords'" => "htmlmeta_name-DC.keywords",
-												"name='DC.description'" => "htmlmeta_name-DC.description",
-												"name='DC.language'" => "htmlmeta_name-DC.language",
-												"name='DC.subject'" => "htmlmeta_name-DC.subject",
-												"name='DC.publisher'" => "htmlmeta_name-DC.publisher",
-												"name='DC.creator'" => "htmlmeta_name-DC.creator",
-												"name='DC.date'" => "htmlmeta_name-DC.date",
-												"name='DC.type'" => "htmlmeta_name-DC.type",
-												"name='DC.format'" => "htmlmeta_name-DC.format",
-												"name='DC.identifier'" => "htmlmeta_name-DC.identifier",
-												"name='DC.rights'" => "htmlmeta_name-DC.rights",
-												"name='DC.source'" => "htmlmeta_name-DC.source",
-												"name='DC.relation'" => "htmlmeta_name-DC.relation",
-												"name='DC.Date.created'" => "htmlmeta_name-DC.Date.created"
+												"name='DC.title'" => "htmlmeta_name-DC-title",
+												"name='DC.keywords'" => "htmlmeta_name-DC-keywords",
+												"name='DC.description'" => "htmlmeta_name-DC-description",
+												"name='DC.language'" => "htmlmeta_name-DC-language",
+												"name='DC.subject'" => "htmlmeta_name-DC-subject",
+												"name='DC.publisher'" => "htmlmeta_name-DC-publisher",
+												"name='DC.creator'" => "htmlmeta_name-DC-creator",
+												"name='DC.date'" => "htmlmeta_name-DC-date",
+												"name='DC.type'" => "htmlmeta_name-DC-type",
+												"name='DC.format'" => "htmlmeta_name-DC-format",
+												"name='DC.identifier'" => "htmlmeta_name-DC-identifier",
+												"name='DC.rights'" => "htmlmeta_name-DC-rights",
+												"name='DC.source'" => "htmlmeta_name-DC-source",
+												"name='DC.relation'" => "htmlmeta_name-DC-relation",
+												"name='DC.Date.created'" => "htmlmeta_name-DC-Date-created",
+												"property='og:title'" => "htmlmeta_og-title",
+												"property='og:image'" => "htmlmeta_og-image",
+												"property='og:description'" => "htmlmeta_og-description",
+												"property='og:url'" => "htmlmeta_og-url",
+												"property='og:type'" => "htmlmeta_og-type"
 												),
 										"desc" => gettext("Which of the HTML meta tags should be used. For info about these in detail please refer to the net."))
 
@@ -116,50 +125,92 @@ class htmlmetatags {
  *
  */
 function getHTMLMetaData() {
-	global $_zp_gallery, $_zp_current_album, $_zp_current_image, $_zp_current_zenpage_news,
+	global $_zp_gallery, $_zp_galley_page, $_zp_current_album, $_zp_current_image, $_zp_current_zenpage_news,
 					$_zp_current_zenpage_page, $_zp_gallery_page, $_zp_current_category, $_zp_authority;
-	$url = sanitize("http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI']);
+	$host = sanitize("http://".$_SERVER['HTTP_HOST']);
+	$url = $host.sanitize($_SERVER['REQUEST_URI']);
 
 	// Convert locale shorttag to allowed html meta format
 	$locale = getOption("locale");
 	$locale = strtr($locale,"_","-");
-
+	$canonicalurl = '';
 	// generate page title, get date
-		$pagetitle = "";
-		$date = strftime(DATE_FORMAT); // if we don't have a item date use current date
-		$desc = getBareGalleryDesc();
-	  if(is_object($_zp_current_image) AND is_object($_zp_current_album)) {
-			$pagetitle = getBareImageTitle()." (". getBareAlbumTitle().") - ";
-			$date = getImageDate();
-			$desc = getBareImageDesc();
-		}
-		if(is_object($_zp_current_album) AND !is_object($_zp_current_image)) {
+	$pagetitle = ""; // for gallery index setup below switch
+	$date = strftime(DATE_FORMAT); // if we don't have a item date use current date
+	$desc = getBareGalleryDesc();
+	$thumb = '';
+	$type = 'article';
+	switch($_zp_gallery_page) {
+		case 'index.php':
+			$desc = getBareGalleryDesc();
+			$canonicalurl = $host.getGalleryIndexURL();
+			$type = 'website';
+			break;
+		case 'album.php':
 			$pagetitle = getBareAlbumTitle()." - ";
 			$date = getAlbumDate();
 			$desc = getBareAlbumDesc();
-		}
-		if(function_exists("is_NewsArticle")) {
-			if(is_NewsArticle()) {
-				$pagetitle = getBareNewsTitle()." - ";
-				$date = getNewsDate();
-				$desc = strip_tags(getNewsContent());
-			} else 	if(is_NewsCategory()) {
-				$pagetitle = $_zp_current_category->getTitlelink()." - ";
-				$date = strftime(DATE_FORMAT);
-				$desc = "";
-			} else if(is_Pages()) {
-				$pagetitle = getBarePageTitle()." - ";
-				$date = getPageDate();
-				$desc = strip_tags(getPageContent());
+			$canonicalurl = $host.getAlbumLinkURL();
+			$thumb = $host.getAlbumThumb();
+			break;
+		case 'image.php':
+			$pagetitle = getBareImageTitle()." (". getBareAlbumTitle().") - ";
+			$date = getImageDate();
+			$desc = getBareImageDesc();
+			$canonicalurl = $host.getImageLinkURL();
+			$thumb = $host.getImageThumb();
+			break;
+		case 'news.php':
+			if(function_exists("is_NewsArticle")) {
+				if(is_NewsArticle()) {
+					$pagetitle = getBareNewsTitle()." - ";
+					$date = getNewsDate();
+					$desc = strip_tags(getNewsContent());
+					$canonicalurl = $host.getNewsURL($_zp_current_zenpage_news->getTitlelink());
+				} else 	if(is_NewsCategory()) {
+					$pagetitle = $_zp_current_category->getTitlelink()." - ";
+					$date = strftime(DATE_FORMAT);
+					$desc = html_encode(strip_tags($_zp_current_category->getDesc()));
+					$canonicalurl = $host.getNewsCategoryURL($_zp_current_category->getTitlelink());
+				} else {
+					$pagetitle = gettext('News')." - ";
+					$desc = '';
+					$canonicalurl = $host.getNewsIndexURL();
+				}
 			}
-		}
-		// shorten desc to the allowed 200 characters if necesssary.
-		if(strlen($desc) > 200) {
-			$desc = substr($desc,0,200);
-		}
-
-		$pagetitle = $pagetitle.getBareGalleryTitle();
-
+			break;
+		case 'pages.php':
+			$pagetitle = getBarePageTitle()." - ";
+			$date = getPageDate();
+			$desc = html_encode(strip_tags(getPageContent()));
+			$canonicalurl = $host.getPageLinkURL($_zp_current_zenpage_page->getTitlelink());
+			break;
+		case 'archive.php':
+			$pagetitle = gettext('Archive')." - ";
+			$desc = '';
+			$canonicalurl = $host.getCustomPageURL('archive');
+			break;
+		case 'search.php':
+			$pagetitle = gettext('Search')." - ";
+			$desc = '';
+			$canonicalurl = $host.getCustomPageURL('search');
+			break;
+		case 'contact.php':
+			$pagetitle = gettext('Contact')." - ";
+			$desc = '';
+			$canonicalurl = $host.getCustomPageURL('contact');
+			break;
+		default: // for all other possible none standard custom pages
+			$pagetitle = sanitize(@$_GET['p']);
+			$desc = '';
+			$canonicalurl = $host.getCustomPageURL($pagetitle);
+			break;
+	}
+	// shorten desc to the allowed 200 characters if necesssary.
+	if(strlen($desc) > 200) {
+		$desc = substr($desc,0,200);
+	}
+	$pagetitle = $pagetitle.getBareGalleryTitle();
 	// get master admin
 	$admin = $_zp_authority->getAnAdmin(array('`user`=' => $_zp_authority->master_user, '`valid`=' => 1));
 	$author = $admin->getName();
@@ -181,26 +232,87 @@ function getHTMLMetaData() {
 	if(getOption('htmlmeta_name-author')) { $meta .= '<meta name="author" content="'.$author.'" />'."\n"; }
 	if(getOption('htmlmeta_name-copyright')) { $meta .= '<meta name="copyright" content=" (c) '.FULLWEBPATH.' - '.$author.'" />'."\n"; }
 	if(getOption('htmlmeta_name-rights')) { $meta .= '<meta name="rights" content="'.$author.'" />'."\n"; }
-	if(getOption('htmlmeta_name-rights')) { $meta .= '<meta name="generator" content="Zenphoto '.ZENPHOTO_VERSION . ' [' . ZENPHOTO_RELEASE . ']" />'."\n"; }
 	if(getOption('htmlmeta_name-revisit-after')) { $meta .= '<meta name="revisit-after" content="'.getOption("htmlmeta_revisit_after").'" />'."\n"; }
 	if(getOption('htmlmeta_name-expires')) { $meta .= '<meta name="expires" content="'.getOption("htmlmeta_expires").'" />'."\n"; }
-	if(getOption('htmlmeta_name-expires')) { $meta .= '<meta name="date" content="'.$date.'" />'."\n"; }
-	if(getOption('htmlmeta_name-DC.titl')) { $meta .= '<meta name="DC.title" content="'.$pagetitle.'" />'."\n"; }
-	if(getOption('htmlmeta_name-DC.keywords')) { $meta .= '<meta name="DC.keywords" content="'.gettMetaKeywords().'" />'."\n"; }
-	if(getOption('htmlmeta_name-DC.description')) { $meta .= '<meta name="DC.description" content="'.$desc.'" />'."\n"; }
-	if(getOption('htmlmeta_name-DC.language')) { $meta .= '<meta name="DC.language" content="'.$locale.'" />'."\n"; }
-	if(getOption('htmlmeta_name-DC.subject')) { $meta .= '<meta name="DC.subject" content="'.$desc.'" />'."\n"; }
-	if(getOption('htmlmeta_name-DC.publisher')) { $meta .= '<meta name="DC.publisher" content="'.FULLWEBPATH.'" />'."\n"; }
-	if(getOption('htmlmeta_name-DC.creator')) { $meta .= '<meta name="DC.creator" content="'.FULLWEBPATH.'" />'."\n"; }
-	if(getOption('htmlmeta_name-DC.date')) { $meta .= '<meta name="DC.date" content="'.$date.'" />'."\n"; }
-	if(getOption('htmlmeta_name-DC.type')) { $meta .= '<meta name="DC.type" content="Text" /> <!-- ? -->'."\n"; }
-	if(getOption('htmlmeta_name-DC.format')) { $meta .= '<meta name="DC.format" content="text/html" /><!-- What else? -->'."\n"; }
-	if(getOption('htmlmeta_name-DC.identifier')) { $meta .= '<meta name="DC.identifier" content="'.FULLWEBPATH.'" />'."\n"; }
-	if(getOption('htmlmeta_name-DC.rights')) { $meta .= '<meta name="DC.rights" content="'.FULLWEBPATH.'" />'."\n"; }
-	if(getOption('htmlmeta_name-DC.source')) { $meta .= '<meta name="DC.source" content="'.$url.'" />'."\n"; }
-	if(getOption('htmlmeta_name-DC.relation')) { $meta .= '<meta name="DC.relation" content="'.FULLWEBPATH.'" />'."\n"; }
-	if(getOption('htmlmeta_name-DC.Date.created')) { $meta .= '<meta name="DC.Date.created" content="'.$date.'" />'."\n"; }
 
+	// DC meta items
+	if(getOption('htmlmeta_name-DC-title')) { $meta .= '<meta name="DC.title" content="'.$pagetitle.'" />'."\n"; }
+	if(getOption('htmlmeta_name-DC-keywords')) { $meta .= '<meta name="DC.keywords" content="'.gettMetaKeywords().'" />'."\n"; }
+	if(getOption('htmlmeta_name-DC-description')) { $meta .= '<meta name="DC.description" content="'.$desc.'" />'."\n"; }
+	if(getOption('htmlmeta_name-DC-language')) { $meta .= '<meta name="DC.language" content="'.$locale.'" />'."\n"; }
+	if(getOption('htmlmeta_name-DC-subject')) { $meta .= '<meta name="DC.subject" content="'.$desc.'" />'."\n"; }
+	if(getOption('htmlmeta_name-DC-publisher')) { $meta .= '<meta name="DC.publisher" content="'.FULLWEBPATH.'" />'."\n"; }
+	if(getOption('htmlmeta_name-DC-creator')) { $meta .= '<meta name="DC.creator" content="'.FULLWEBPATH.'" />'."\n"; }
+	if(getOption('htmlmeta_name-DC-date')) { $meta .= '<meta name="DC.date" content="'.$date.'" />'."\n"; }
+	if(getOption('htmlmeta_name-DC-type')) { $meta .= '<meta name="DC.type" content="Text" /> <!-- ? -->'."\n"; }
+	if(getOption('htmlmeta_name-DC-format')) { $meta .= '<meta name="DC.format" content="text/html" /><!-- What else? -->'."\n"; }
+	if(getOption('htmlmeta_name-DC-identifier')) { $meta .= '<meta name="DC.identifier" content="'.FULLWEBPATH.'" />'."\n"; }
+	if(getOption('htmlmeta_name-DC-rights')) { $meta .= '<meta name="DC.rights" content="'.FULLWEBPATH.'" />'."\n"; }
+	if(getOption('htmlmeta_name-DC-source')) { $meta .= '<meta name="DC.source" content="'.$url.'" />'."\n"; }
+	if(getOption('htmlmeta_name-DC-relation')) { $meta .= '<meta name="DC.relation" content="'.FULLWEBPATH.'" />'."\n"; }
+	if(getOption('htmlmeta_name-DC-Date-created')) { $meta .= '<meta name="DC.Date.created" content="'.$date.'" />'."\n"; }
+
+	// OpenGraph meta items
+	if(getOption('htmlmeta_og-title')) { $meta .= '<meta property="og:title" content="'.$pagetitle.'" />'."\n"; }
+	if(getOption('htmlmeta_og-image') && !empty($thumb)) { $meta .= '<meta property="og:image" content="'.$thumb.'" />'."\n"; }
+	if(getOption('htmlmeta_og-description')) { $meta .= '<meta property="og:description" content="'.$desc.'" />'."\n"; }
+	if(getOption('htmlmeta_og-url')) { $meta .= '<meta property="og:url" content="'.$url.'" />'."\n"; }
+	if(getOption('htmlmeta_og-type')) { $meta .= '<meta property="og:type" content="'.$type.'" />'."\n"; }
+
+	// Canonical url
+	if(getOption('htmlmeta_canonical-url')) {
+		$meta .= '<link rel="canonical" href="'.$canonicalurl.'" />'."\n";
+		if(getOption('zp_plugin_seo_locale')) {
+			$langs = generateLanguageList();
+			if(count($langs) != 1) {
+				foreach ($langs as $text=>$lang) {
+					$langcheck = strtr($lang, '_','-');	// in urls we need en_US while for hreflang we need en-US.
+					if($langcheck == $locale) {
+						$altlink = '';
+					} else {
+						switch($_zp_gallery_page) {
+							case 'index.php':
+								$altlink = FULLWEBPATH.'/'.$lang;
+								break;
+							case 'album.php':
+								$altlink = FULLWEBPATH.'/'.$lang.'/'.html_encode($_zp_current_album->name);
+								break;
+							case 'image.php':
+								$altlink = FULLWEBPATH.'/'.$lang.'/'.html_encode($_zp_current_album->name).'/'.html_encode($_zp_current_image->filename).IM_SUFFIX;
+								break;
+							case 'news.php':
+								if(function_exists("is_NewsArticle")) {
+									if(is_NewsArticle()) {
+										$altlink = FULLWEBPATH.'/'.$lang.'/news/'.html_encode($_zp_current_zenpage_news->getTitlelink());
+									} else 	if(is_NewsCategory()) {
+										$altlink = FULLWEBPATH.'/'.$lang.'/news/'.html_encode($_zp_current_category->getTitlelink());
+									} else {
+										$altlink = FULLWEBPATH.'/'.$lang.'/news';
+									}
+								}
+								break;
+							case 'pages.php':
+								$altlink = FULLWEBPATH.'/'.$lang.'/pages/'.html_encode($_zp_current_zenpage_page->getTitlelink());
+								break;
+							case 'archive.php':
+								$altlink = FULLWEBPATH.'/'.$lang.'/page/'.html_encode('archive');
+								break;
+							case 'search.php':
+								$altlink = FULLWEBPATH.'/'.$lang.'/page/'.html_encode('search');
+								break;
+							case 'contact.php':
+								$altlink = FULLWEBPATH.'/'.$lang.'/page/'.html_encode('contact');
+								break;
+							default: // for all other possible none standard custom pages
+								$altlink = FULLWEBPATH.'/'.$lang.'/page/'.html_encode($pagetitle);
+								break;
+						} // switch
+						$meta .= '<link rel="alternate" hreflang="'.$langcheck.'" href="'.$altlink.'" />'."\n";
+					} // if lang
+				} // foreach
+			} // if count
+		} // if option
+	} // if canonical
 	echo $meta;
 }
 
@@ -266,5 +378,4 @@ function getMetaAlbumAndImageTags($tags,$mode="") {
 	}
 	return $alltags;
 }
-
 ?>

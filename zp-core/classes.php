@@ -38,8 +38,7 @@
 
 // The query cache
 $_zp_object_cache = array();
-$_zp_object_update_cache = array();
-
+define('OBJECT_CACHE_DEPTH', 150);	//	how many objects to hold for each object class
 
 // ABSTRACT
 class PersistentObject {
@@ -50,7 +49,7 @@ class PersistentObject {
 	var $table;
 	var $unique_set = NULL;
 	var $cache_by;
-	var $id;
+	var $id = 0;
 	var $use_cache = false;
 	var $transient;
 	var $tempdata = NULL;
@@ -74,59 +73,50 @@ class PersistentObject {
 		$this->loaded = false;
 		$this->table = $tablename;
 		$this->unique_set = $unique_set;
-		$this->cache_by = $cache_by;
+		if (is_null($cache_by)) {
+			$this->cache_by = serialize($unique_set);
+		} else {
+			$this->cache_by = $this->unique_set[$cache_by];
+		}
 		$this->use_cache = $use_cache;
 		$this->transient = $is_transient;
 		$result = $this->load($allowCreate);
 		return $result;
 	}
 
-
 	/**
-	* Caches the current set of objects defined by a variable key $cache_by.
-	* Uses a global array to store the results of a single database query,
-	* where subsequent requests for the object look for data.
-	* @return a reference to the array location where this class' cache is stored
-	*   indexed by the field $cache_by.
-	*/
-	function cache($entry=NULL) {
+	 *
+	 * check the cache for presence of the entry and return it if found
+	 * @param $entry
+	 */
+	private function getFromCache() {
 		global $_zp_object_cache;
-		if (is_null($this->cache_by)) return false;
 		$classname = get_class($this);
-		if (!isset($_zp_object_cache[$classname])) {
-			$_zp_object_cache[$classname] = array();
+		if (isset($_zp_object_cache[$classname])) {
+			$cache = @$_zp_object_cache[$classname][$this->cache_by];
+			return $cache;
 		}
-		$cache_set = array_diff_assoc($this->unique_set, array($this->cache_by => $this->unique_set[$this->cache_by]));
-
-		// This must be done here; the references do not work returned by a function.
-		$cache_location = &$_zp_object_cache[$classname];
-		foreach($cache_set as $key => $value) {
-			if (!isset($cache_location[$value])) {
-				$cache_location[$value] = array();
-			}
-			$cache_location = &$cache_location[$value];
-		}
-		// Exit if this object set is already cached.
-		if (!empty($cache_location)) {
-			return $cache_location;
-		}
-
-		if (!is_null($entry)) {
-			$key = $entry[$this->cache_by];
-			$cache_location[$key] = $entry;
-		} else {
-			$sql = 'SELECT * FROM ' . prefix($this->table) . getWhereClause($cache_set);
-			$result = query($sql);
-			if ($result && db_num_rows($result) == 0) return false;
-
-			while ($row = db_fetch_assoc($result)) {
-				$key = $row[$this->cache_by];
-				$cache_location[$key] = $row;
-			}
-		}
-		return $cache_location;
+		return false;
 	}
 
+	/**
+	 *
+	 * add the entry to the cache
+	 * @param $entry
+	 */
+	private function addToCache($entry) {
+		global $_zp_object_cache;
+		if ($entry) {
+			$classname = get_class($this);
+			if (!isset($_zp_object_cache[$classname])) {
+				$_zp_object_cache[$classname] = array();
+			}
+			if (count($_zp_object_cache[$classname]) >= OBJECT_CACHE_DEPTH) {
+				array_shift($_zp_object_cache[$classname]);	//	discard the oldest
+			}
+			$_zp_object_cache[$classname][$this->cache_by] = $entry;
+		}
+	}
 
 	/**
 	* Set a variable in this object. Does not persist to the database until
@@ -149,8 +139,7 @@ class PersistentObject {
 	* Sets default values for new objects using the set() method.
 	* Should do nothing in the base class; subclasses should override.
 	*/
-	function setDefaults() {
-		return;
+	protected function setDefaults() {
 	}
 
 	/**
@@ -247,7 +236,7 @@ class PersistentObject {
 	 * @return string
 	 */
 	function getID() {
-		return $this->get('id');
+		return (int) $this->get('id');
 	}
 
 
@@ -273,28 +262,27 @@ class PersistentObject {
 	* @param bool $allowCreate set to true to enable new object creation.
 	* @return false if the record already exists, true if a new record was created.
 	*/
-	function load($allowCreate) {
+	private function load($allowCreate) {
 		$new = false;
 		$entry = null;
 		// Set up the SQL query in case we need it...
 		$sql = 'SELECT * FROM ' . prefix($this->table) . getWhereClause($this->unique_set) . ' LIMIT 1;';
 		// But first, try the cache.
 		if ($this->use_cache) {
-			$reporting = error_reporting(0);
-			$cache_location = &$this->cache();
-			$entry = &$cache_location[$this->unique_set[$this->cache_by]];
-			error_reporting($reporting);
+			$entry = $this->getFromCache();
 		}
-		// Re-check the database if: 1) not using cache, or 2) didn't get a hit.
+		// Check the database if: 1) not using cache, or 2) didn't get a hit.
 		if (empty($entry)) {
 			$entry = query_single_row($sql,false);
+			// Save this entry into the cache so we get a hit next time.
+			$this->addToCache($entry);
 		}
 
 		// If we don't have an entry yet, this is a new record. Create it.
 		if (empty($entry)) {
 			if ($this->transient) { // no don't save it in the DB!
 				$entry = array_merge($this->unique_set, $this->updates, $this->tempdata);
-				$entry['id'] = '';
+				$entry['id'] = 0;
 			} else if (!$allowCreate) {
 				return NULL;	// does not exist and we are not allowed to create it
 			} else {
@@ -303,12 +291,12 @@ class PersistentObject {
 				$entry = query_single_row($sql);
 				// If we still don't have an entry, something went wrong...
 				if (!$entry) return null;
-				// Then save this new entry into the cache so we get a hit next time.
-				$this->cache($entry);
+				// Save this new entry into the cache so we get a hit next time.
+				$this->addToCache($entry);
 			}
 		}
 		$this->data = $entry;
-		$this->id = $entry['id'];
+		$this->id = (int) $entry['id'];
 		$this->loaded = true;
 		return $new;
 	}
@@ -323,7 +311,7 @@ class PersistentObject {
 			return;
 		}
 		if ($this->transient) return; // If this object isn't supposed to be persisted, don't save it.
-		if ($this->id == null) {
+		if (!$this->id) {
 			$this->setDefaults();
 			// Create a new object and set the id from the one returned.
 			$insert_data = array_merge($this->unique_set, $this->updates, $this->tempdata);
@@ -347,8 +335,7 @@ class PersistentObject {
 			foreach ($insert_data as $key=>$value) { // copy over any changes
 				$this->data[$key] = $value;
 			}
-			$this->id = db_insert_id();
-			$this->data['id'] = $this->id; // so 'get' will retrieve it!
+			$this->data['id'] = $this->id = (int) db_insert_id(); // so 'get' will retrieve it!
 			$this->loaded = true;
 			$this->updates = array();
 			$this->tempdata = array();
@@ -380,6 +367,7 @@ class PersistentObject {
 			}
 		}
 		zp_apply_filter('save_object', true, $this);
+		$this->addToCache($this->data);
 		return true;
 	}
 
@@ -402,7 +390,7 @@ class ThemeObject extends PersistentObject {
 	/**
 	 * Class instantiator
 	 */
-	function ThemeObject() {
+	function __construct() {
 		// no action required
 	}
 
@@ -452,8 +440,7 @@ class ThemeObject extends PersistentObject {
 	 * counts visits to the object
 	 */
 	function countHit() {
-		$hc = $this->get('hitcounter')+1;
-		$this->set('hitcounter', $hc);
+		$this->set('hitcounter', $this->get('hitcounter')+1);
 		$this->save();
 	}
 
@@ -640,8 +627,8 @@ class ThemeObject extends PersistentObject {
 	function getCommentCount() {
 		if (is_null($this->commentcount)) {
 			if ($this->comments == null) {
-				$count = query_single_row("SELECT COUNT(*) FROM " . prefix("comments") . " WHERE `type`='".$this->table."' AND `inmoderation`=0 AND `private`=0 AND `ownerid`=" . $this->id);
-				$this->commentcount = array_shift($count);
+				$count = db_count("comments", "WHERE `type`='".$this->table."' AND `inmoderation`=0 AND `private`=0 AND `ownerid`=" . $this->id);
+				$this->commentcount = $count;
 			} else {
 				$this->commentcount = count($this->comments);
 			}
@@ -672,17 +659,17 @@ class ThemeObject extends PersistentObject {
 	 * @param $show
 	 */
 	function checkForGuest(&$hint=NULL, &$show=NULL) {
-		return !(GALLERY_SECURITY == 'private');
+		return !(GALLERY_SECURITY != 'public');
 	}
 
 	/**
 	 *
 	 * Checks if viewing of object is allowed
-	 * @param unknown_type $hint
-	 * @param unknown_type $show
+	 * @param string $hint
+	 * @param string $show
 	 */
 	function checkAccess(&$hint=NULL, &$show=NULL) {
-		if ($this->isMyItem($this->view_rights)) {
+		if ($this->isMyItem(LIST_RIGHTS)) {
 			return true;
 		}
 		return $this->checkforGuest($hint, $show);
@@ -700,7 +687,7 @@ class MediaObject extends ThemeObject {
 	/**
 	 * Class instantiator
 	 */
-	function MediaObject() {
+	function __construct() {
 	//	no actions required
 	}
 
@@ -753,7 +740,13 @@ class MediaObject extends ThemeObject {
 	 *
 	 * @return string
 	 */
-	function getPassword() { return $this->get('password'); }
+	function getPassword() {
+		if (GALLERY_SECURITY != 'public') {
+			return NULL;
+		} else {
+			return $this->get('password');
+		}
+	}
 
 	/**
 	 * Sets the encrypted password
@@ -784,6 +777,61 @@ class MediaObject extends ThemeObject {
 	 * @param string $hint the hint text
 	 */
 	function setPasswordHint($hint) { $this->set('password_hint', $hint); }
+
+	/**
+	* Returns the expire date
+	*
+	* @return string
+	*/
+	function getExpireDate() {
+		$dt = $this->get("expiredate");
+		if ($dt == '0000-00-00 00:00:00') {
+			return NULL;
+		} else {
+			return $dt;
+		}
+	}
+	/**
+	* sets the expire date
+	*
+	*/
+	function setExpireDate($ed) {
+		if ($ed) {
+			$newtime = dateTimeConvert($ed);
+			if ($newtime === false) return;
+			$this->set('expiredate', $newtime);
+		} else {
+			$this->set('expiredate', NULL);
+		}
+	}
+
+	/**
+	 * Returns the publish date
+	 *
+	 * @return string
+	 */
+	function getPublishDate() {
+		$dt = $this->get("publishdate");
+		if ($dt == '0000-00-00 00:00:00') {
+			return NULL;
+		} else {
+			return $dt;
+		}
+	}
+
+	/**
+	 * sets the publish date
+	 *
+	 */
+	function setPublishDate($ed) {
+		if ($ed) {
+			$newtime = dateTimeConvert($ed);
+			if ($newtime === false) return;
+			$this->set('publishdate', $newtime);
+		} else {
+			$this->set('publishdate', NULL);
+		}
+	}
 
 }
 ?>

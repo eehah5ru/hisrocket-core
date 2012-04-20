@@ -1,5 +1,6 @@
 <?php
 $host = getRSSHost();
+$channeltitle = getRSSChanneltitle();
 $protocol = SERVER_PROTOCOL;
 if ($protocol == 'https_admin') {
 	$protocol = 'http';
@@ -7,6 +8,7 @@ if ($protocol == 'https_admin') {
 $locale = getRSSLocale();
 $validlocale = getRSSLocaleXML();
 $modrewritesuffix = getRSSImageAndAlbumPaths("modrewritesuffix");
+require_once(ZENFOLDER .  "/lib-MimeTypes.php");
 header('Content-Type: application/xml');
 $rssmode = getRSSAlbumsmode();
 $albumfolder = getRSSAlbumnameAndCollection("albumfolder");
@@ -20,7 +22,7 @@ $gallery = new Gallery();
 ?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
 <channel>
-<title><?php echo strip_tags(get_language_string($gallery->get('gallery_title'), $locale)).' '.strip_tags($albumname); ?></title>
+<title><?php echo html_encode($channeltitle.' '.strip_tags($albumname)); ?></title>
 <link><?php echo $protocol."://".$host.WEBPATH; ?></link>
 <atom:link href="<?php echo $protocol; ?>://<?php echo html_encode($_SERVER["HTTP_HOST"]); ?><?php echo html_encode($_SERVER["REQUEST_URI"]); ?>" rel="self"	type="application/rss+xml" />
 <description><?php echo strip_tags(get_language_string($gallery->get('Gallery_description'), $locale)); ?></description>
@@ -37,36 +39,38 @@ $gallery = new Gallery();
 	}
 	foreach ($result as $item) {
 		if($rssmode != "albums") {
-			$ext = strtolower(strrchr($item->filename, "."));
+			$ext = getSuffix($item->filename);
 			$albumobj = $item->getAlbum();
 			$itemlink = $host.WEBPATH.$albumpath.pathurlencode($albumobj->name).$imagepath.pathurlencode($item->filename).$modrewritesuffix;
 			$fullimagelink = $host.WEBPATH."/albums/".pathurlencode($albumobj->name)."/".$item->filename;
 			$imagefile = "albums/".$albumobj->name."/".$item->filename;
-			$thumburl = '<img border="0" src="'.$protocol.'://'.$host.$item->getCustomImage($size, NULL, NULL, NULL, NULL, NULL, NULL, TRUE).'" alt="'.get_language_string(get_language_string($item->get("title"),$locale)) .'" />';
+			$thumburl = '<img border="0" src="'.$protocol.'://'.$host.$item->getCustomImage($size, NULL, NULL, NULL, NULL, NULL, NULL, TRUE).'" alt="'.get_language_string(get_language_string($item->get("title"),$locale)) .'" /><br />';
 			$itemcontent = '<![CDATA[<a title="'.html_encode(get_language_string($item->get("title"),$locale)).' in '.html_encode(get_language_string($albumobj->get("title"),$locale)).'" href="'.$protocol.'://'.$itemlink.'">'.$thumburl.'</a>' . get_language_string(get_language_string($item->get("desc"),$locale)) . ']]>';
 			$videocontent = '<![CDATA[<a title="'.html_encode(get_language_string($item->get("title"),$locale)).' in '.html_encode(get_language_string($albumobj->getTitle(),$locale)).'" href="'.$protocol.'://'.$itemlink.'"><img src="'.$protocol.'://'.$host.$item->getThumb().'" alt="'.get_language_string(get_language_string($item->get("title"),$locale)) .'" /></a>' . get_language_string(get_language_string($item->get("desc"),$locale)) . ']]>';
-			$datecontent = '<![CDATA[Date: '.zpFormattedDate(DATE_FORMAT,$item->get('mtime')).']]>';
+			$datecontent = '<![CDATA[<br />Date: '.zpFormattedDate(DATE_FORMAT,$item->get('mtime')).']]>';
 		} else {
 			$galleryobj = new Gallery();
 			$albumitem = new Album($galleryobj, $item['folder']);
 			$totalimages = $albumitem->getNumImages();
 			$itemlink = $host.WEBPATH.$albumpath.pathurlencode($albumitem->name);
 			$thumb = $albumitem->getAlbumThumbImage();
-			$thumburl = '<img border="0" src="'.$thumb->getCustomImage($size, NULL, NULL, NULL, NULL, NULL, NULL, TRUE).'" alt="'.html_encode(get_language_string($albumitem->get("title"),$locale)) .'" />';
+			$thumburl = '<img border="0" src="'.$thumb->getCustomImage($size, NULL, NULL, NULL, NULL, NULL, NULL, TRUE).'" alt="'.get_language_string($albumitem->get("title"),$locale) .'" />';
 			$title =  get_language_string($albumitem->get("title"),$locale);
 			if(true || getOption("feed_sortorder_albums") == "latestupdated") {
 				$filechangedate = filectime(ALBUM_FOLDER_SERVERPATH.internalToFilesystem($albumitem->name));
 				$latestimage = query_single_row("SELECT mtime FROM " . prefix('images'). " WHERE albumid = ".$albumitem->getAlbumID() . " AND `show` = 1 ORDER BY id DESC");
-				$lastuploaded = query("SELECT COUNT(*) FROM ".prefix('images')." WHERE albumid = ".$albumitem->getAlbumID() . " AND mtime = ". $latestimage['mtime']);
-				$row = db_fetch_row($lastuploaded);
-				$count = $row[0];
-				if($count == 1) {
-					$imagenumber = sprintf(gettext('%s (1 new image)'),$title);
+				if($latestimage) {
+					$count = db_count('images',"WHERE albumid = ".$albumitem->getAlbumID() . " AND mtime = ". $latestimage['mtime']);
+					if($count == 1) {
+						$imagenumber = sprintf(gettext('%s (1 new image)'),$title);
+					}	else {
+						$imagenumber = sprintf(gettext('%1$s (%2$s new images)'),$title,$count);
+					} 
 				} else {
-					$imagenumber = sprintf(gettext('%1$s (%2$s new images)'),$title,$count);
+					$imagenumber = $title;
 				}
 				$itemcontent = '<![CDATA[<a title="'.$title.'" href="'.$protocol.'://'.$itemlink.'">'.$thumburl.'</a>'.
-						'<p>'.html_encode($imagenumber).'</p>'.html_encode(get_language_string($albumitem->get("desc"),$locale)).']]>';
+						'<p>'.html_encode($imagenumber).'</p>'.get_language_string($albumitem->get("desc"),$locale).']]>';
 				$videocontent = '';
 				$datecontent = '<![CDATA['.sprintf(gettext("Last update: %s"),zpFormattedDate(DATE_FORMAT,$filechangedate)).']]>';
 			} else {
@@ -75,12 +79,12 @@ $gallery = new Gallery();
 				} else {
 					$imagenumber = sprintf(gettext('%1$s (%2$s images)'),$title,$totalimages);
 				}
-				$itemcontent = '<![CDATA[<a title="'.html_encode($title).'" href="'.$protocol.'://'.$itemlink.'">'.$thumburl.'</a>'.html_encode(get_language_string($albumitem->get("desc"),$locale)).']]>';
+				$itemcontent = '<![CDATA[<a title="'.html_encode($title).'" href="'.$protocol.'://'.$itemlink.'">'.$thumburl.'</a>'.get_language_string($albumitem->get("desc"),$locale).']]>';
 				$datecontent = '<![CDATA['.sprintf(gettext("Date: %s"),zpFormattedDate(DATE_FORMAT,$albumitem->get('mtime'))).']]>';
 			}
-			$ext = strtolower(strrchr($thumb->filename, "."));
+			$ext = getSuffix($thumb->filename);
 		}
-		$mimetype = getMimeType($ext);
+		$mimetype = getMimeString($ext);
 		?>
 <item>
 <title><?php
@@ -95,7 +99,7 @@ if($rssmode != "albums") {
 </link>
 <description>
 <?php
-if ((($ext == ".flv") || ($ext == ".mp3") || ($ext == ".mp4") ||  ($ext == ".3gp") ||  ($ext == ".mov")) AND $rssmode != "album") {
+if ((($ext == "flv") || ($ext == "mp3") || ($ext == "mp4") ||  ($ext == "3gp") ||  ($ext == "mov")) AND $rssmode != "album") {
 	echo $videocontent;
 } else {
 	echo $itemcontent;

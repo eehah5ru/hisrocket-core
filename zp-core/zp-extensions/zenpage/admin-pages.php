@@ -7,21 +7,35 @@
  * @subpackage zenpage
  */
 define("OFFSET_PATH",4);
-require_once(dirname(dirname(dirname(__FILE__))).'/admin-functions.php');
 require_once(dirname(dirname(dirname(__FILE__))).'/admin-globals.php');
 require_once("zenpage-admin-functions.php");
 
 admin_securityChecks(ZENPAGE_PAGES_RIGHTS, currentRelativeURL(__FILE__));
 
 $reports = array();
+if (isset($_GET['bulkaction'])) {
+	$reports[] = zenpageBulkActionMessage(sanitize($_GET['bulkaction']));
+}
 if (isset($_GET['deleted'])) {
 	$reports[] = "<p class='messagebox fade-message'>".gettext("Article successfully deleted!")."</p>";
 }
-// update page sort order
 if(isset($_POST['update'])) {
 	XSRFdefender('update');
-	processZenpageBulkActions('Page', $reports);
-	updateItemSortorder('pages',$reports);
+	if ($_POST['checkallaction']=='noaction') {
+		if (updateItemSortorder('pages')) {
+			$reports[] = "<br clear=\"all\"><p class='messagebox fade-message'>".gettext("Sort order saved.")."</p>";
+		}
+	} else {
+		$action = processZenpageBulkActions('Page');
+		$uri = $_server['REQUEST_URI'];
+		if (strpos($uri, '?')) {
+			$uri .= '&bulkaction='.$action;
+		} else {
+			$uri .= '?bulkaction='.$action;
+		}
+		header('Location: ' .$uri);
+		exit();
+	}
 }
 // remove the page from the database
 if(isset($_GET['delete'])) {
@@ -82,8 +96,15 @@ zenpageJSCSS();
 	printTabs();
 	echo '<div id="content">';
 	zp_apply_filter('admin_note','pages', '');
-	foreach ($reports as $report) {
-		echo $report;
+	if ($reports) {
+		$show = array();
+		preg_match_all('/<p class=[\'"](.*?)[\'"]>(.*?)<\/p>/', implode('', $reports),$matches);
+		foreach ($matches[1] as $key=>$report) {
+			$show[$report][] = $matches[2][$key];
+		}
+		foreach ($show as $type=>$list) {
+			echo '<p class="'.$type.'">'.implode('<br />', $list).'</p>';
+		}
 	}
 ?>
 <h1><?php echo gettext('Pages'); ?><span class="zenpagestats"><?php printPagesStatistic();?></span></h1>
@@ -93,7 +114,7 @@ zenpageJSCSS();
 <div>
 <p><?php echo gettext("Select a page to edit or drag the pages into the order, including subpage levels, you wish them displayed."); ?></p>
 <?php
-if (GALLERY_SECURITY != 'private') {
+if (GALLERY_SECURITY == 'public') {
 	?>
 	<p class="notebox"><?php echo gettext("<strong>Note:</strong> Subpages of password protected pages inherit the protection."); ?></p>
 	<?php
@@ -122,21 +143,21 @@ if (GALLERY_SECURITY != 'private') {
 <div class="bordered">
  <div class="headline"><?php echo gettext('Edit this page'); ?>
 	<?php
-  $checkarray = array(
-							  	gettext('*Bulk actions*') => 'noaction',
-							  	gettext('Delete') => 'deleteall',
-							  	gettext('Set to published') => 'showall',
-							  	gettext('Set to unpublished') => 'hideall',
+	$checkarray = array(
+									gettext('*Bulk actions*') => 'noaction',
+									gettext('Delete') => 'deleteall',
+									gettext('Set to published') => 'showall',
+									gettext('Set to unpublished') => 'hideall',
 									gettext('Add tags') => 'addtags',
 									gettext('Clear tags') => 'cleartags',
-							  	gettext('Disable comments') => 'commentsoff',
-							  	gettext('Enable comments') => 'commentson',
-							  	gettext('Reset hitcounter') => 'resethitcounter',
-					  			);
+									gettext('Disable comments') => 'commentsoff',
+									gettext('Enable comments') => 'commentson',
+									gettext('Reset hitcounter') => 'resethitcounter',
+									);
 	printBulkActions($checkarray);
-  ?>
+	?>
 	</div>
-  <div class="subhead">
+	<div class="subhead">
 		<label style="float: right"><?php echo gettext("Check All"); ?> <input type="checkbox" name="allbox" id="allbox" onclick="checkAll(this.form, 'ids[]', this.checked);" />
 		</label>
 	</div>

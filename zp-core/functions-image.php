@@ -142,37 +142,61 @@ function iptc_make_tag($rec, $data, $value) {
  * @param string $album the album containing the image
  */
 function cacheImage($newfilename, $imgfile, $args, $allow_watermark=false, $theme, $album) {
-	@list($size, $width, $height, $cw, $ch, $cx, $cy, $quality, $thumb, $crop, $thumbstandin, $passedWM, $adminrequest, $effects) = $args;
-	// Set the config variables for convenience.
-	$image_use_side = getOption('image_use_side');
-	$upscale = getOption('image_allow_upscale');
-	$allowscale = true;
-	$sharpenthumbs = getOption('thumb_sharpen');
-	$sharpenimages = getOption('image_sharpen');
-	$id = NULL;
-	$watermark_use_image = getAlbumInherited($album, 'watermark', $id);
-	if (empty($watermark_use_image)) {
-		$watermark_use_image = IMAGE_WATERMARK;
-	}
-	if (!$effects) {
-		if ($thumb && getOption('thumb_gray')) {
-			$effects = 'gray';
-		} else if (getOption('image_gray')) {
-			$effects = 'gray';
+	try {
+		@list($size, $width, $height, $cw, $ch, $cx, $cy, $quality, $thumb, $crop, $thumbstandin, $passedWM, $adminrequest, $effects) = $args;
+		// Set the config variables for convenience.
+		$image_use_side = getOption('image_use_side');
+		$upscale = getOption('image_allow_upscale');
+		$allowscale = true;
+		$sharpenthumbs = getOption('thumb_sharpen');
+		$sharpenimages = getOption('image_sharpen');
+		$id = $im = NULL;
+		$watermark_use_image = getAlbumInherited($album, 'watermark', $id);
+		if (empty($watermark_use_image)) {
+			$watermark_use_image = IMAGE_WATERMARK;
 		}
-	}
-	$newfile = SERVERCACHE . $newfilename;
-	if (DEBUG_IMAGE) debugLog("cacheImage(\$imgfile=".basename($imgfile).", \$newfilename=$newfilename, \$allow_watermark=$allow_watermark, \$theme=$theme) \$size=$size, \$width=$width, \$height=$height, \$cw=$cw, \$ch=$ch, \$cx=".(is_null($cx)?'NULL':$cx).", \$cy=".(is_null($cy)?'NULL':$cy).", \$quality=$quality, \$thumb=$thumb, \$crop=$crop \$image_use_side=$image_use_side; \$upscale=$upscale;");
-	// Check for the source image.
-	if (!file_exists($imgfile) || !is_readable($imgfile)) {
-		imageError(gettext('Image not found or is unreadable.'), 'err-imagenotfound.png');
-	}
-	$rotate = false;
-	if (zp_imageCanRotate() && getOption('auto_rotate'))  {
-		$rotate = getImageRotation($imgfile);
-	}
-
-	if ($im = zp_imageGet($imgfile)) {
+		if (!$effects) {
+			if ($thumb && getOption('thumb_gray')) {
+				$effects = 'gray';
+			} else if (getOption('image_gray')) {
+				$effects = 'gray';
+			}
+		}
+		$newfile = SERVERCACHE . $newfilename;
+		if (DEBUG_IMAGE) debugLog("cacheImage(\$imgfile=".basename($imgfile).", \$newfilename=$newfilename, \$allow_watermark=$allow_watermark, \$theme=$theme) \$size=$size, \$width=$width, \$height=$height, \$cw=$cw, \$ch=$ch, \$cx=".(is_null($cx)?'NULL':$cx).", \$cy=".(is_null($cy)?'NULL':$cy).", \$quality=$quality, \$thumb=$thumb, \$crop=$crop \$image_use_side=$image_use_side; \$upscale=$upscale);");
+		// Check for the source image.
+		if (!file_exists($imgfile) || !is_readable($imgfile)) {
+			imageError(gettext('Image not found or is unreadable.'), 'err-imagenotfound.png');
+		}
+		$rotate = false;
+		if (zp_imageCanRotate() && getOption('auto_rotate'))  {
+			$rotate = getImageRotation($imgfile);
+		}
+		$s = getSuffix($imgfile);
+		if (function_exists('exif_thumbnail') && getOption('use_embedded_thumb') && ($s=='jpg') || $s=='jpeg') {
+			$im = exif_thumbnail($imgfile, $tw, $th, $tt);
+			if ($im) {
+				if ($size) {
+					$big_enough = $tw>=$size && $th>=$size;
+				} else {
+					$big_enough = $tw>=$width && $th>=$height;
+				}
+				if ($big_enough) {
+					$im = zp_imageFromString($im);
+					if (DEBUG_IMAGE && $im) debugLog(sprintf(gettext('Using %1$ux%2$u %3$s thumbnail image.'),$tw,$th, image_type_to_mime_type ($tt)));
+				} else {
+					$im = false;
+				}
+			} else {
+				$im = false;
+			}
+		}
+		if (!$im) {
+			$im = zp_imageGet($imgfile);
+		}
+		if (!$im) {
+			imageError(gettext('Image not renderable.'), 'err-failimage.png');
+		}
 		if ($rotate) {
 			$im = zp_rotateImage($im, $rotate);
 		}
@@ -216,8 +240,8 @@ function cacheImage($newfilename, $imgfile, $args, $allow_watermark=false, $them
 		list($neww, $newh) = $sizes;
 
 		if (DEBUG_IMAGE) debugLog("cacheImage:".basename($imgfile).": \$size=$size, \$width=$width, \$height=$height, \$w=$w; \$h=$h; \$cw=$cw, ".
-											"\$ch=$ch, \$cx=$cx, \$cy=$cy, \$quality=$quality, \$thumb=$thumb, \$crop=$crop, \$newh=$newh, \$neww=$neww, \$dim=$dim, ".
-											"\$ratio_in=$ratio_in, \$ratio_out=$ratio_out \$upscale=$upscale \$rotate=$rotate \$effects=$effects");
+										"\$ch=$ch, \$cx=$cx, \$cy=$cy, \$quality=$quality, \$thumb=$thumb, \$crop=$crop, \$newh=$newh, \$neww=$neww, \$dim=$dim, ".
+										"\$ratio_in=$ratio_in, \$ratio_out=$ratio_out \$upscale=$upscale \$rotate=$rotate \$effects=$effects");
 
 		if (!$upscale && $newh >= $h && $neww >= $w) { // image is the same size or smaller than the request
 			$neww = $w;
@@ -288,7 +312,9 @@ function cacheImage($newfilename, $imgfile, $args, $allow_watermark=false, $them
 			}
 			if (DEBUG_IMAGE) debugLog("cacheImage:crop ".basename($imgfile).":\$size=$size, \$width=$width, \$height=$height, \$cw=$cw, \$ch=$ch, \$cx=$cx, \$cy=$cy, \$quality=$quality, \$thumb=$thumb, \$crop=$crop, \$rotate=$rotate");
 			$newim = zp_createImage($neww, $newh);
-			zp_resampleImage($newim, $im, 0, 0, $cx, $cy, $neww, $newh, $cw, $ch);
+			if (!zp_resampleImage($newim, $im, 0, 0, $cx, $cy, $neww, $newh, $cw, $ch)) {
+				imageError(gettext('Image not renderable.'), 'err-failimage.png');
+			}
 		} else {
 			if ($allowscale) {
 				$sizes = propSizes($size, $width, $height, $w, $h, $thumb, $image_use_side, $dim);
@@ -297,7 +323,14 @@ function cacheImage($newfilename, $imgfile, $args, $allow_watermark=false, $them
 			}
 			if (DEBUG_IMAGE) debugLog("cacheImage:no crop ".basename($imgfile).":\$size=$size, \$width=$width, \$height=$height, \$dim=$dim, \$neww=$neww; \$newh=$newh; \$quality=$quality, \$thumb=$thumb, \$crop=$crop, \$rotate=$rotate; \$allowscale=$allowscale;");
 			$newim = zp_createImage($neww, $newh);
-			zp_resampleImage($newim, $im, 0, 0, 0, 0, $neww, $newh, $w, $h);
+			if (!zp_resampleImage($newim, $im, 0, 0, 0, 0, $neww, $newh, $w, $h)) {
+				imageError(gettext('Image not renderable.'), 'err-failimage.png');
+			}
+			if (($thumb && $sharpenthumbs) || (!$thumb && $sharpenimages)) {
+				if (!zp_imageUnsharpMask($newim, getOption('sharpen_amount'), getOption('sharpen_radius'), getOption('sharpen_threshold'))) {
+					imageError(gettext('Image not renderable.'), 'err-failimage.png');
+				}
+			}
 		}
 
 		$imgEffects = explode(',', $effects);
@@ -305,9 +338,6 @@ function cacheImage($newfilename, $imgfile, $args, $allow_watermark=false, $them
 			zp_imageGray($newim);
 		}
 
-		if (($thumb && $sharpenthumbs) || (!$thumb && $sharpenimages)) {
-			zp_imageUnsharpMask($newim, getOption('sharpen_amount'), getOption('sharpen_radius'), getOption('sharpen_threshold'));
-		}
 		$watermark_image = false;
 		if ($passedWM) {
 			if ($passedWM != NO_WATERMARK) {
@@ -332,14 +362,17 @@ function cacheImage($newfilename, $imgfile, $args, $allow_watermark=false, $them
 		if ($watermark_image) {
 			$offset_h = getOption('watermark_h_offset') / 100;
 			$offset_w = getOption('watermark_w_offset') / 100;
+			$percent = getOption('watermark_scale')/100;
 			$watermark = zp_imageGet($watermark_image);
+			if (!$watermark) {
+				imageError(gettext('Watermark not renderable.'), 'err-failimage.png');
+			}
 			$watermark_width = zp_imageWidth($watermark);
 			$watermark_height = zp_imageHeight($watermark);
 			$imw = zp_imageWidth($newim);
 			$imh = zp_imageHeight($newim);
 			$nw = sqrt(($imw * $imh * $percent)*($watermark_width/$watermark_height));
 			$nh = $nw*($watermark_height/$watermark_width);
-			$percent = getOption('watermark_scale')/100;
 			$r = sqrt(($imw * $imh * $percent) / ($watermark_width * $watermark_height));
 			if (!getOption('watermark_allow_upscale')) {
 				$r = min(1, $r);
@@ -348,12 +381,17 @@ function cacheImage($newfilename, $imgfile, $args, $allow_watermark=false, $them
 			$nh = round($watermark_height * $r);
 			if (($nw != $watermark_width) || ($nh != $watermark_height)) {
 				$watermark = zp_imageResizeAlpha($watermark, $nw, $nh);
+				if (!$watermark) {
+					imageError(gettext('Watermark not renderable.'), 'err-failimage.png');
+				}
 			}
 			// Position Overlay in Bottom Right
 			$dest_x = max(0, floor(($imw - $nw) * $offset_w));
 			$dest_y = max(0, floor(($imh - $nh) * $offset_h));
 			if (DEBUG_IMAGE) debugLog("Watermark:".basename($imgfile).": \$offset_h=$offset_h, \$offset_w=$offset_w, \$watermark_height=$watermark_height, \$watermark_width=$watermark_width, \$imw=$imw, \$imh=$imh, \$percent=$percent, \$r=$r, \$nw=$nw, \$nh=$nh, \$dest_x=$dest_x, \$dest_y=$dest_y");
-			zp_copyCanvas($newim, $watermark, $dest_x, $dest_y, 0, 0, $nw, $nh);
+			if (!zp_copyCanvas($newim, $watermark, $dest_x, $dest_y, 0, 0, $nw, $nh)) {
+				imageError(gettext('Image not renderable.'), 'err-failimage.png');
+			}
 			zp_imageKill($watermark);
 		}
 
@@ -368,8 +406,8 @@ function cacheImage($newfilename, $imgfile, $args, $allow_watermark=false, $them
 					require_once(dirname(__FILE__).'/functions.php');	//	it is ok to increase memory footprint now since the image processing is complete
 					$gallery = new Gallery();
 					$iptc = array('1#090' => chr(0x1b) . chr(0x25) . chr(0x47),	//	character set is UTF-8
-												'2#115' =>$gallery->getTitle()	//	source
-												);
+											'2#115' =>$gallery->getTitle()	//	source
+					);
 					$imgfile = str_replace(ALBUM_FOLDER_SERVERPATH, '', $imgfile);
 					$imagename = basename($imgfile);
 					$albumname = dirname($imgfile);
@@ -405,11 +443,18 @@ function cacheImage($newfilename, $imgfile, $args, $allow_watermark=false, $them
 			if (DEBUG_IMAGE) debugLog('Finished:'.basename($imgfile));
 		} else {
 			if (DEBUG_IMAGE) debugLog('cacheImage: failed to create '.$newfile);
+			imageError(sprintf(gettext('cacheImage: failed to create %s').$newfile), 'err-failimage.png');
 		}
 		@chmod($newfile, 0666 & CHMOD_VALUE);
 		zp_imageKill($newim);
 		zp_imageKill($im);
+	} catch (Exception $e) {
+		debugLog('cacheImage('.$newfilename.') exception: '.$e->getMessage());
+		imageError(sprintf(gettext('cacheImage(%1$s) exception: %2$s'),$newfilename,$e->getMessage()), 'err-failimage.png');
+		return false;
 	}
+	clearstatcache();
+	return true;
 }
 
  /* Determines the rotation of the image looking EXIF information.
@@ -442,8 +487,5 @@ function getImageRotation($imgfile) {
 	}
 	return false;
 }
-
-//load PHP specific functions
-require_once(PHPscript('5.0.0', '_functions-image.php'));
 
 ?>

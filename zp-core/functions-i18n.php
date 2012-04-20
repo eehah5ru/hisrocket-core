@@ -390,6 +390,7 @@ function parseHttpAcceptLanguage($str=NULL) {
  */
 function validateLocale($userlocale,$source) {
 	if (DEBUG_LOCALE) debugLog("validateLocale($userlocale,$source)");
+	$userlocale = str_replace('-', '_', $userlocale);
 	$languageSupport = generateLanguageList();
 	$locale = NULL;
 	if (!empty($userlocale)) {
@@ -399,7 +400,7 @@ function validateLocale($userlocale,$source) {
 				$locale = $value;
 				if (DEBUG_LOCALE) debugLog("locale set from $source: ".$locale);
 				break;
-			} else if (preg_match('/^'.$userlocale.'/', strtoupper($value))) { // we got a partial match
+			} else if (@preg_match('/^'.$userlocale.'/', strtoupper($value))) { // we got a partial match
 				$locale = $value;
 				if (DEBUG_LOCALE) debugLog("locale set from $source (partial match): ".$locale);
 				break;
@@ -428,7 +429,8 @@ function getUserLocale() {
 		}
 		if (DEBUG_LOCALE) debugLog("dynamic_locale from URL: ".sanitize($_REQUEST['locale'], 0)."=>$locale");
 	} else {
-		$locale = false;
+		$matches = explode('.',@$_SERVER['HTTP_HOST']);
+		$locale = validateLocale($matches[0], 'HTTP_HOST');
 	}
 	if (!$locale && is_object($_zp_current_admin_obj)) {
 		$locale =  $_zp_current_admin_obj->getLanguage();

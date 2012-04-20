@@ -6,12 +6,13 @@
  * They are not maintained and they are not guaranteed to function correctly with the
  * current version of Zenphoto.
  *
+ * @author Stephen Billard (sbillard)
  * @package plugins
  */
 $plugin_description = gettext("Deprecated Zenphoto functions. These functions have been removed from mainstream Zenphoto as they have been supplanted. They are not maintained and they are not guaranteed to function correctly with the current version of Zenphoto.  You should update your theme if you get warnings. This plugin is not required for any theme coded for the current version of Zenphoto.");
 $option_interface = 'deprecated_functions';
 $plugin_is_filter = 9|CLASS_PLUGIN;
-$plugin_version = '1.4.1';
+$plugin_version = '1.4.2';
 
 class deprecated_functions {
 
@@ -67,7 +68,7 @@ function deprecated_function_notify($use) {
 		} else {
 			error_reporting(E_ALL);
 		}
-		trigger_error(sprintf(gettext('%1$s (called from %2$s line %3$s) is deprecated'),$fcn,$script,$line).$use, E_USER_NOTICE);
+		trigger_error(sprintf(gettext('%1$s (called from %2$s line %3$s) is deprecated'),$fcn,$script,$line).$use.'<br />'.sprintf(gettext('You can disable this error message by going to the <em>deprecated-functions</em> plugin options and un-checking <strong>%s</strong> in the list of functions.'.'<br />'),$fcn), E_USER_NOTICE);
 		error_reporting($old_reporting);
 	}
 }
@@ -253,14 +254,18 @@ function getAlbumPlace() {
 /**
  * @deprecated
  */
-function printAlbumPlace($editable=false, $editclass='', $messageIfEmpty = true) {
+function printAlbumPlace() {
 	deprecated_function_notify(gettext('Use printAlbumLocation().'));
-	if ( $messageIfEmpty === true ) {
-		$messageIfEmpty = gettext('(No place...)');
-	}
-	printEditable('album', 'location', $editable, $editclass, $messageIfEmpty, !getOption('tinyMCEPresent'));
+	printField('album', 'location');
 }
 
+/**
+ * @deprecated
+ */
+function printEditable($context, $field, $editable = NULL, $editclass = 'unspecified', $messageIfEmpty = true, $convertBR = false, $override = false, $label='') {
+	deprecated_function_notify(gettext('Use printField().'));
+	printField($context,$field,$convertBR,$override,$label);
+}
 
 /***************************
  * ZENPAGE PLUGIN FUNCTIONS
@@ -933,7 +938,7 @@ function getPages($published=NULL) {
  * @param bool $sticky set to true to place "sticky" articles at the front of the list.
  * @return array
  */
-function getNewsArticles($articles_per_page='', $category='', $published=NULL,$ignorepagination=false,$sortorder="date", $sortdirection="desc",$sticky=true) {
+function getArticles($articles_per_page='', $category='', $published=NULL,$ignorepagination=false,$sortorder="date", $sortdirection="desc",$sticky=true) {
 	deprecated_function_notify(gettext('Use the Zenpage class method instead.'));
 	global $_zp_current_category, $_zp_post_date;
 	processExpired('news');
@@ -1115,10 +1120,8 @@ function countArticles($category='', $published='published',$count_subcat_articl
 		} else {
 			$datesearch = "";
 		}
-		$result = query("SELECT COUNT(*) FROM ".prefix('news').$show.$datesearch);
-		$row = db_fetch_row($result);
-		$count = $row[0];
-		return $count;
+		$count = db_count('news',$show.$datesearch);
+			return $count;
 	} else {
 		$catobj = new ZenpageCategory($category);
 		switch($published) {
@@ -1418,7 +1421,7 @@ function getCombiNews($articles_per_page='', $mode='',$published=NULL,$sortorder
 		case "latestupdatedalbums-thumbnail":
 		case "latestupdatedalbums-thumbnail-customcrop":
 		case "latestupdatedalbums-sizedimage":
-			$latest = getNewsArticles($articles_per_page,'',NULL,true);
+			$latest = getArticles($articles_per_page,'',NULL,true);
 			$counter = '';
 			foreach($latest as $news) {
 				$article = new ZenpageNews($news['titlelink']);
@@ -1501,8 +1504,7 @@ function countCombiNews($published=NULL) {
 				case "latestimagesbyalbum-thumbnail-customcrop":
 				case "latestimagesbyalbum-sizedimage":
 					($published) ? $show = "WHERE `show`= 1" : $show = "";
-					$result = query("SELECT COUNT(DISTINCT Date(date),albumid) FROM " . prefix('images'). " ".$show);
-					$countGalleryitems = db_result($result, 0);
+					$countGalleryitems = db_count('images',$show,'DISTINCT Date(date),albumid');
 					break;
 			}
 		} else {
@@ -1577,4 +1579,116 @@ function isProtectedAlbum($album=NULL) {
 }
 
 
+/**
+ * Returns the RSS link for use in the HTML HEAD
+ *
+ * @param string $option type of RSS: "Gallery" feed for the whole gallery
+ * 																		"Album" for only the album it is called from
+ * 																		"Collection" for the album it is called from and all of its subalbums
+ * 																		 "Comments" for all comments
+ * 																		"Comments-image" for comments of only the image it is called from
+ * 																		"Comments-album" for comments of only the album it is called from
+ * @param string $linktext title of the link
+ * @param string $lang optional to display a feed link for a specific language. Enter the locale like "de_DE" (the locale must be installed on your Zenphoto to work of course). If empty the locale set in the admin option or the language selector (getOption('locale') is used.
+ *
+ *
+ * @return string
+ * @since 1.1
+ */
+function getRSSHeaderLink($option, $linktext='', $lang='') {
+	deprecated_function_notify(gettext('Use the template function <code>getRSSLink()</code> instead. NOTE: While this function gets a full html link <code>getRSSLink()</code> just returns the URL.'));
+	global $_zp_current_album;
+	$host = html_encode($_SERVER["HTTP_HOST"]);
+	$protocol = SERVER_PROTOCOL.'://';
+	if ($protocol == 'https_admin') {
+		$protocol = 'https://';
+	}
+	if(empty($lang)) {
+		$lang = getOption("locale");
+	}
+	switch($option) {
+		case "Gallery":
+			if (getOption('RSS_album_image')) {
+				return "<link rel=\"alternate\" type=\"application/rss+xml\" title=\"".html_encode($linktext)."\" href=\"".$protocol.$host.WEBPATH."/index.php?rss&amp;lang=".$lang."\" />\n";
+			}
+		case "Album":
+			if (getOption('RSS_album_image')) {
+				return "<link rel=\"alternate\" type=\"application/rss+xml\" title=\"".html_encode($linktext)."\" href=\"".$protocol.$host.WEBPATH."/index.php?rss&amp;albumtitle=".urlencode(getAlbumTitle())."&amp;albumname=".urlencode($_zp_current_album->getFolder())."&amp;lang=".$lang."\" />\n";
+			}
+		case "Collection":
+			if (getOption('RSS_album_image')) {
+				return "<link rel=\"alternate\" type=\"application/rss+xml\" title=\"".html_encode($linktext)."\" href=\"".$protocol.$host.WEBPATH."/index.php?rss&amp;albumtitle=".urlencode(getAlbumTitle())."&amp;folder=".urlencode($_zp_current_album->getFolder())."&amp;lang=".$lang."\" />\n";
+			}
+		case "Comments":
+			if (getOption('RSS_comments')) {
+				return "<link rel=\"alternate\" type=\"application/rss+xml\" title=\"".html_encode($linktext)."\" href=\"".$protocol.$host.WEBPATH."/index.php?rss-comments&amp;lang=".$lang."\" />\n";
+			}
+		case "Comments-image":
+			if (getOption('RSS_comments')) {
+				return "<link rel=\"alternate\" type=\"application/rss+xml\" title=\"".html_encode($linktext)."\" href=\"".$protocol.$host.WEBPATH."/index.php?rss-comments&amp;id=".getImageID()."&amp;title=".urlencode(getImageTitle())."&amp;type=image&amp;lang=".$lang."\" />\n";
+			}
+		case "Comments-album":
+			if (getOption('RSS_comments')) {
+				return "<link rel=\"alternate\" type=\"application/rss+xml\" title=\"".html_encode($linktext)."\" href=\"".$protocol.$host.WEBPATH."/index.php?rss-comments&amp;id=".getAlbumID()."&amp;title=".urlencode(getAlbumTitle())."&amp;type=album&amp;lang=".$lang."\" />\n";
+			}
+		case "AlbumsRSS":
+			if (getOption('RSS_album_image')) {
+				return "<link rel=\"alternate\" type=\"application/rss+xml\" title=\"".html_encode($linktext)."\" href=\"".$protocol.$host.WEBPATH."/index.php?rss-comments&amp;lang=".$lang."&amp;albumsmode\" />\n";
+			}
+
+	}
+}
+
+/**
+ * Returns the RSS link for use in the HTML HEAD
+ *
+ * @param string $option type of RSS: "News" feed for all news articles
+ * 																		"Category" for only the news articles of a specific category
+ * 																		"NewsWithImages" for all news articles and latest images
+ * @param string $categorylink The specific category you want a RSS feed from (only 'Category' mode)
+ * @param string $linktext title of the link
+ * @param string $lang optional to display a feed link for a specific language (currently works for latest images only). Enter the locale like "de_DE" (the locale must be installed on your Zenphoto to work of course). If empty the locale set in the admin option or the language selector (getOption('locale') is used.
+ *
+ * @return string
+ */
+function getZenpageRSSHeaderLink($option='', $categorylink='', $linktext='', $lang='') {
+	deprecated_function_notify(gettext('Use the template function <code>getZenpageRSSLink()</code> instead. NOTE: While this function gets a full html link  <code>getZenpageRSSLink()</code> just returns the URL.'));
+	global $_zp_current_category;
+	$host = html_encode($_SERVER["HTTP_HOST"]);
+	$protocol = SERVER_PROTOCOL.'://';
+	if ($protocol == 'https_admin') {
+		$protocol = 'https://';
+	}
+	if(empty($lang)) {
+		$lang = getOption("locale");
+	}
+	if($option == 'Category') {
+		if(!is_null($categorylink)) {
+			$categorylink = '&amp;category='.html_encode($categorylink);
+		} elseif(empty($categorylink) AND !is_null($_zp_current_category)) {
+			$categorylink = '&amp;category='.$_zp_current_category->getTitlelink();
+		} else {
+			$categorylink = '';
+		}
+	}
+	switch($option) {
+		case "News":
+			if (getOption('RSS_articles')) {
+				return "<link rel=\"alternate\" type=\"application/rss+xml\" title=\"".html_encode(strip_tags($linktext))."\" href=\"".$protocol.$host.WEBPATH."/index.php?rss-news&amp;lang=".$lang."\" />\n";
+			}
+		case "Category":
+			if (getOption('RSS_articles')) {
+				return "<link rel=\"alternate\" type=\"application/rss+xml\" title=\"".html_encode(strip_tags($linktext))."\" href=\"".$protocol.$host.WEBPATH."/index.php?rss-news&amp;lang=".$lang.$categorylink."\" />\n";
+			}
+		case "NewsWithImages":
+			if (getOption('RSS_articles')) {
+				return "<link rel=\"alternate\" type=\"application/rss+xml\" title=\"".html_encode(strip_tags($linktext))."\" href=\"".$protocol.$host.WEBPATH."/index.php?rss-news&amp;withimages&amp;lang=".$lang."\" />\n";
+			}
+	}
+}
+
+function generateCaptcha(&$img) {
+	deprecated_function_notify(gettext('Use $_zp_captcha->getCaptcha(). Note that you will require updating your code to the new function.'));
+	return $img = NULL;
+}
 ?>

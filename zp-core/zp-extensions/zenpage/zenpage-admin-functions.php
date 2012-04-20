@@ -16,7 +16,7 @@ require_once("zenpage-class-page.php");
 require_once("zenpage-class-news.php");
 require_once("zenpage-class-category.php");
 
-global $_zp_zenpage, $_zp_current_zenpage_news, $_zp_current_zenpage_page, $_zp_current_category;
+global $_zp_zenpage, $_zp_current_zenpage_news, $_zp_current_zenpage_page, $_zp_current_category, $_zp_zenpage_currentadminnewspage;
 
 /**
  * Retrieves posted expiry date and checks it against the current date/time
@@ -306,7 +306,7 @@ function printPagesListTable($page, $flag) {
 		<div class="page-list_iconwrapper">
 	<div class="page-list_icon">
 	<?php
-	if ($page->isProtected() && (GALLERY_SECURITY != 'private')) {
+	if ($page->getPassword()) {
 		echo '<img src="../../images/lock.png" style="border: 0px;" alt="'.gettext('Password protected').'" title="'.gettext('Password protected').'" />';
 	}
 	?>
@@ -344,7 +344,7 @@ function printPagesListTable($page, $flag) {
 
 		<div class="page-list_icon">
 			<a href="../../../index.php?p=pages&amp;title=<?php echo js_encode($page->getTitlelink()) ;?>" title="<?php echo gettext("View page"); ?>">
-			<img src="images/view.png" alt="" title="view" />
+			<img src="images/view.png" alt="" title="<?php gettext('view'); ?>" />
 			</a>
 		</div>
 
@@ -355,7 +355,7 @@ function printPagesListTable($page, $flag) {
 	</div>
 	<div class="page-list_icon">
 		<a href="javascript:confirmDelete('admin-pages.php?delete=<?php echo $page->getTitlelink(); ?>&amp;add&amp;XSRFToken=<?php echo getXSRFToken('delete')?>',deletePage)" title="<?php echo gettext("Delete page"); ?>">
-		<img src="../../images/fail.png" alt="" title="delete" /></a>
+		<img src="../../images/fail.png" alt="" title="<?php gettext('delete'); ?>" /></a>
 	</div>
 	<div class="page-list_icon">
 		<input class="checkbox" type="checkbox" name="ids[]" value="<?php echo $page->getTitlelink(); ?>" onclick="triggerAllBox(this.form, 'ids[]', this.form.allbox);" />
@@ -621,7 +621,7 @@ function printCategorySelection($id='', $option='') {
 		}
 		$catname = $catobj->getTitle();
 		$catlink = $catobj->getTitlelink();
-		if($catobj->isProtected() && ((GALLERY_SECURITY != 'private'))) {
+		if($catobj->getPassword()) {
 			$protected = '<img src="'.WEBPATH.'/'.ZENFOLDER.'/images/lock.png" alt="'.gettext('password protected').'" />';
 		} else {
 			$protected = '';
@@ -638,9 +638,9 @@ function printCategorySelection($id='', $option='') {
  *
  */
 function printArticleDatesDropdown() {
-	global $_zp_zenpage;
+	global $_zp_zenpage,$_zp_zenpage_currentadminnewspage;
 	$datecount = $_zp_zenpage->getAllArticleDates();
-	$currentpage = $_zp_zenpage->getCurrentAdminNewsPage();
+	$currentpage = $_zp_zenpage_currentadminnewspage;
 	$lastyear = "";
 	$nr = "";
  ?>
@@ -664,7 +664,7 @@ function printArticleDatesDropdown() {
 			$month = substr($dt, 5);
 		}
 		if(isset($_GET['category'])) {
-				$catlink = "&amp;category=".$_GET['category'];
+				$catlink = "&amp;category=".sanitize($_GET['category']);
 			} else {
 				$catlink = "";
 			}
@@ -675,14 +675,14 @@ function printArticleDatesDropdown() {
 				$selected = "";
 			}
 			if(isset($_GET['date'])) {
-				echo "<option $selected value='admin-news-articles.php?pagenr=".$currentpage.getNewsAdminOptionPath(true,false,true)."'>$month $year ($val)</option>\n";
+				echo "<option $selected value='admin-news-articles.php?pagenr=".$currentpage.getNewsAdminOptionPath(true,false,true,true,true)."'>$month $year ($val)</option>\n";
 			} else {
-				echo "<option $selected value='admin-news-articles.php?pagenr=".$currentpage."&amp;date=".substr($key,0,7).getNewsAdminOptionPath(true,false,true)."'>$month $year ($val)</option>\n";
+				echo "<option $selected value='admin-news-articles.php?pagenr=".$currentpage."&amp;date=".substr($key,0,7).getNewsAdminOptionPath(true,false,true,true,true)."'>$month $year ($val)</option>\n";
 			}
 	}
 ?>
 	</select>
-	<script language="JavaScript" type="text/javascript" >
+	<script type="text/javascript" >
 		// <!-- <![CDATA[
 		function gotoLink(form) {
 		var OptionIndex=form.ListBoxURL.selectedIndex;
@@ -699,8 +699,8 @@ function printArticleDatesDropdown() {
  * @param int $total the page count
  */
 function printArticlesPageNav($total) {
-	global $_zp_zenpage;
-	$current = $_zp_zenpage->getCurrentAdminNewsPage();
+	global $_zp_zenpage,$_zp_zenpage_currentadminnewspage;
+	$current = $_zp_zenpage_currentadminnewspage;
 	$navlen = 9;
 	if($total > 1) {
 		$extralinks = 4;
@@ -712,19 +712,19 @@ function printArticlesPageNav($total) {
 		echo "<ul class=\"pagelist\">";
 		echo "<li class=\"prev\">";
 		if ($current != 1) {
-			echo "<a href='admin-news-articles.php?pagenr=".($current - 1).getNewsAdminOptionPath(true,true,true)."' title='".gettext("Prev Page")." ".($current - 1)."' >&laquo; ".gettext("prev")."</a>\n";
+			echo "<a href='admin-news-articles.php?pagenr=".($current - 1).getNewsAdminOptionPath(true,true,true,true,true)."' title='".gettext("Prev Page")." ".($current - 1)."' >&laquo; ".gettext("prev")."</a>\n";
 		} else {
 			echo "<span class='disabledlink'>&laquo; ".gettext("prev")."</span>\n";
 		}
 		echo "</li>\n";
 
 		echo '<li class="'.($current==1?'current':'first').'">';
-		echo "<a href='admin-news-articles.php?pagenr=1".getNewsAdminOptionPath(true,true,true)."' title='".gettext("First Page")."' >1</a>\n";
+		echo "<a href='admin-news-articles.php?pagenr=1".getNewsAdminOptionPath(true,true,true,true,true)."' title='".gettext("First Page")."' >1</a>\n";
 		echo "</li>\n";
 		if ($j>2) {
 			echo "<li>";
 			$linktext = ($j-1>2)?'...':$k1;
-			echo "<a href='admin-news-articles.php?pagenr=".$k1.getNewsAdminOptionPath(true,true,true)."' title='page ".sprintf(ngettext('Page %u','Page %u',$k1),$k1)."'>".$linktext."</a>";
+			echo "<a href='admin-news-articles.php?pagenr=".$k1.getNewsAdminOptionPath(true,true,true,true,true)."' title='page ".sprintf(ngettext('Page %u','Page %u',$k1),$k1)."'>".$linktext."</a>";
 			//echo "<a href=\"".getNewsBaseURL().getNewsCategoryPathNav().getNewsArchivePathNav().getNewsPagePath().$k1."\" title=\"".sprintf(ngettext('Page %u','Page %u',$k1),$k1)."\">".($j-1>2)?'...':$k1."</a>";
 			echo "</li>\n";
 		}
@@ -734,24 +734,24 @@ function printArticlesPageNav($total) {
 			if($i == $current) {
 				echo $i;
 			} else {
-				echo "<a href='admin-news-articles.php?pagenr=".$i.getNewsAdminOptionPath(true,true,true)."' title='".sprintf(ngettext('Page %1$u','Page %1$u', $i),$i)."'>".$i."</a>\n";
+				echo "<a href='admin-news-articles.php?pagenr=".$i.getNewsAdminOptionPath(true,true,true,true,true)."' title='".sprintf(ngettext('Page %1$u','Page %1$u', $i),$i)."'>".$i."</a>\n";
 			}
 			echo "</li>\n";
 		}
 		if ($i < $total) {
 			echo "<li>";
 			$linktext = ($total-$i>1)?'...':$k2;
-			echo "<a href='admin-news-articles.php?pagenr=".$k2.getNewsAdminOptionPath(true,true,true)."' title='".sprintf(ngettext('Page %u','Page %u',$k2),$k2)."'>".$linktext."</a>";
+			echo "<a href='admin-news-articles.php?pagenr=".$k2.getNewsAdminOptionPath(true,true,true,true,true)."' title='".sprintf(ngettext('Page %u','Page %u',$k2),$k2)."'>".$linktext."</a>";
 			echo "</li>\n";
 		}
 		if ($i <= $total) {
 			echo "\n  <li class=\"last\">";
-			echo "<a href='admin-news-articles.php?pagenr=".$total.getNewsAdminOptionPath(true,true,true)."' title='".sprintf(ngettext('Page %u','Page %u',$total),$total)."'>".$total."</a>";
+			echo "<a href='admin-news-articles.php?pagenr=".$total.getNewsAdminOptionPath(true,true,true,true,true)."' title='".sprintf(ngettext('Page %u','Page %u',$total),$total)."'>".$total."</a>";
 			echo "</li>";
 		}
 
 		if ($current != $total)	{
-			echo "<li class='next'><a href='admin-news-articles.php?pagenr=".($current+1).getNewsAdminOptionPath(true,true,true)."' title='".gettext("Next page")." ".($current+1)."'>".gettext("next")." &raquo;</a></li>\n";
+			echo "<li class='next'><a href='admin-news-articles.php?pagenr=".($current+1).getNewsAdminOptionPath(true,true,true,true,true)."' title='".gettext("Next page")." ".($current+1)."'>".gettext("next")." &raquo;</a></li>\n";
 		} else {
 			echo "<li class='next'><span class='disabledlink'>".gettext("next")." &raquo;</span></li>\n";
 		}
@@ -760,27 +760,36 @@ function printArticlesPageNav($total) {
 }
 
 /**
- * Creates the admin paths for news articles if you use the dropdowns for category, published and date together
+ * Creates the admin paths for news articles if you use the dropdowns on the admin news article list together
  *
  * @param bool $categorycheck true or false if 'category' should be included in the url
  * @param bool $postedcheck true or false if 'date' should be included in the url
  * @param bool $publishedcheck true or false if 'published' should be included in the url
+ * @param bool $sortordercheck true or false if 'sortorder' should be included in the url
  * @return string
  */
-function getNewsAdminOptionPath($categorycheck='', $postedcheck='',$publishedcheck='') {
-	$category = "";
-	$posted = "";
-	$published = "";
+function getNewsAdminOptionPath($categorycheck='', $postedcheck='',$publishedcheck='',$sortordercheck='',$articles_page='') {
+	$category = '';
+	$posted = '';
+	$published = '';
+	$sortorder = '';
+	$articlespage = '';
 	if(isset($_GET['category']) AND $categorycheck === true) {
-		$category = "&amp;category=".$_GET['category'];
+		$category = "&amp;category=".sanitize($_GET['category']);
 	}
 	if(isset($_GET['date']) AND $postedcheck === true) {
-		$posted = "&amp;date=".$_GET['date'];
+		$posted = "&amp;date=".sanitize($_GET['date']);
 	}
 	if(isset($_GET['published']) AND $publishedcheck === true) {
-		$published = "&amp;published=".$_GET['published'];
+		$published = "&amp;published=".sanitize($_GET['published']);
 	}
-	$optionpath = $category.$posted.$published;
+	if(isset($_GET['sortorder']) AND $sortordercheck === true) {
+		$sortorder = "&amp;sortorder=".sanitize($_GET['sortorder']);
+	}
+	if(isset($_GET['articles_page']) AND $articles_page === true) {
+		$articlespage = "&amp;articles_page=".sanitize_numeric($_GET['articles_page']);
+	}
+	$optionpath = $category.$posted.$published.$sortorder.$articlespage;
 	return $optionpath;
 }
 
@@ -790,8 +799,8 @@ function getNewsAdminOptionPath($categorycheck='', $postedcheck='',$publishedche
  *
  */
 function printUnpublishedDropdown() {
-	global $_zp_zenpage;
-	$currentpage = $_zp_zenpage->getCurrentAdminNewsPage();
+	global $_zp_zenpage,$_zp_zenpage_currentadminnewspage;
+	$currentpage = $_zp_zenpage_currentadminnewspage;
 ?>
 <form name="AutoListBox3" id="unpublisheddropdown" style="float: left; margin-left: 10px;"	action="#">
 	<select name="ListBoxURL" size="1"	onchange="gotoLink(this.form)">
@@ -815,13 +824,179 @@ function printUnpublishedDropdown() {
 	} else {
 		$all="selected='selected'";
 	}
-	echo "<option $all value='admin-news-articles.php?pagenr=".$currentpage.getNewsAdminOptionPath(true,true,false)."'>".gettext("All articles")."</option>\n";
-	echo "<option $published value='admin-news-articles.php?pagenr=".$currentpage.getNewsAdminOptionPath(true,true,false)."&amp;published=yes'>".gettext("Published")."</option>\n";
-	echo "<option $unpublished value='admin-news-articles.php?pagenr=".$currentpage.getNewsAdminOptionPath(true,true,false)."&amp;published=no'>".gettext("Un-published")."</option>\n";
-	echo "<option $sticky value='admin-news-articles.php?pagenr=".$currentpage.getNewsAdminOptionPath(true,true,false)."&amp;published=sticky'>".gettext("Sticky")."</option>\n";
+	echo "<option $all value='admin-news-articles.php?pagenr=".$currentpage.getNewsAdminOptionPath(true,true,false,true,true)."'>".gettext("All articles")."</option>\n";
+	echo "<option $published value='admin-news-articles.php?pagenr=".$currentpage.getNewsAdminOptionPath(true,true,false,true,true)."&amp;published=yes'>".gettext("Published")."</option>\n";
+	echo "<option $unpublished value='admin-news-articles.php?pagenr=".$currentpage.getNewsAdminOptionPath(true,true,false,true,true)."&amp;published=no'>".gettext("Un-published")."</option>\n";
+	echo "<option $sticky value='admin-news-articles.php?pagenr=".$currentpage.getNewsAdminOptionPath(true,true,false,true,true)."&amp;published=sticky'>".gettext("Sticky")."</option>\n";
 	?>
 </select>
-	<script language="JavaScript" type="text/javascript">
+	<script type="text/javascript">
+		// <!-- <![CDATA[
+		function gotoLink(form) {
+		var OptionIndex=form.ListBoxURL.selectedIndex;
+		parent.location = form.ListBoxURL.options[OptionIndex].value;}
+		// ]]> -->
+	</script>
+</form>
+<?php
+}
+
+
+/**
+ * Prints the dropdown menu for the sortorder selector for the news articles list
+ *
+ */
+function printSortOrderDropdown() {
+	global $_zp_zenpage,$_zp_zenpage_currentadminnewspage;
+	$currentpage = $_zp_zenpage_currentadminnewspage;
+?>
+<form name="AutoListBox4" id="sortorderdropdown" style="float: left; margin-left: 10px;"	action="#">
+	<select name="ListBoxURL" size="1"	onchange="gotoLink(this.form)">
+	<?php
+	$orderdate_desc = '';
+	$orderdate_asc = '';
+	$ordertitle_desc = '';
+	$ordertitle_asc = '';
+	if(isset($_GET['sortorder'])) {
+		switch ($_GET['sortorder']) {
+			case "date-desc":
+				$orderdate_desc = "selected='selected'";
+				break;
+			case "date-asc":
+				$orderdate_asc = "selected='selected'";
+				break;
+			case "title-desc":
+				$ordertitle_desc = "selected='selected'";
+				break;
+			case "title-asc":
+				$ordertitle_asc = "selected='selected'";
+				break;
+		}
+	} else {
+		$orderdate_desc = "selected='selected'";
+	}
+	echo "<option $orderdate_desc value='admin-news-articles.php?pagenr=".$currentpage.getNewsAdminOptionPath(true,true,true,false,true)."&amp;sortorder=date-desc'>".gettext("Order by date descending")."</option>\n";
+	echo "<option $orderdate_asc value='admin-news-articles.php?pagenr=".$currentpage.getNewsAdminOptionPath(true,true,true,false,true)."&amp;sortorder=date-asc'>".gettext("Order by date ascending")."</option>\n";
+	echo "<option $ordertitle_desc value='admin-news-articles.php?pagenr=".$currentpage.getNewsAdminOptionPath(true,true,true,false,true)."&amp;sortorder=title-desc'>".gettext("Order by title descending")."</option>\n";
+	echo "<option $ordertitle_asc value='admin-news-articles.php?pagenr=".$currentpage.getNewsAdminOptionPath(true,true,true,false,true)."&amp;sortorder=title-asc'>".gettext("Order by title ascending")."</option>\n";
+	?>
+</select>
+	<script type="text/javascript">
+		// <!-- <![CDATA[
+		function gotoLink(form) {
+		var OptionIndex=form.ListBoxURL.selectedIndex;
+		parent.location = form.ListBoxURL.options[OptionIndex].value;}
+		// ]]> -->
+	</script>
+</form>
+<?php
+}
+
+
+/**
+ * Prints the dropdown menu for the category selector for the news articles list
+ *
+ */
+function printCategoryDropdown() {
+	global $_zp_zenpage, $_zp_zenpage_currentadminnewspage;
+	$currentpage = $_zp_zenpage_currentadminnewspage;
+	$result = $_zp_zenpage->getAllCategories(false);
+	if(isset($_GET['date'])) {
+		$datelink = "&amp;date=".$_GET['date'];
+		$datelinkall = "?date=".$_GET['date'];
+	} else {
+		$datelink = "";
+		$datelinkall ="";
+	}
+
+if(isset($_GET['category'])) {
+	$selected = '';
+	$category = sanitize($_GET['category']);
+} else {
+	$selected = "selected='selected'";
+	$category = "";
+}
+	?>
+	<form name ="AutoListBox2" id="categorydropdown" style="float:left" action="#" >
+	<select name="ListBoxURL" size="1" onchange="gotoLink(this.form)">
+		<?php
+		echo "<option $selected value='admin-news-articles.php?pagenr=".$currentpage.getNewsAdminOptionPath(false,true,true,true,true)."'>".gettext("All categories")."</option>\n";
+
+		foreach ($result as $cat) {
+			$catobj = new ZenpageCategory($cat['titlelink']);
+			// check if there are articles in this category. If not don't list the category.
+			$count = count($catobj->getArticles(0,'all'));
+			$count = " (".$count.")";
+			if($category == $cat['titlelink']) {
+				$selected = "selected='selected'";
+			} else {
+				$selected ="";
+			}
+			//This is much easier than hacking the nested list function to work with this
+			$getparents = $catobj->getParents();
+			$levelmark ='';
+			foreach($getparents as $parent) {
+				$levelmark .= '&raquo; ';
+			}
+			$title = $catobj->getTitle();
+			if (empty($title)) {
+				$title = '*'.$catobj->getTitlelink().'*';
+			}
+			if ($count != " (0)") {
+				echo "<option $selected value='admin-news-articles.php?pagenr=".$currentpage."&amp;category=".$catobj->getTitlelink().getNewsAdminOptionPath(false,true,true,true,true)."'>".$levelmark.$title.$count."</option>\n";
+			}
+		}
+		?>
+	</select>
+	<script type="text/javascript" >
+		// <!-- <![CDATA[
+		function gotoLink(form) {
+		var OptionIndex=form.ListBoxURL.selectedIndex;
+		parent.location = form.ListBoxURL.options[OptionIndex].value;}
+		// ]]> -->
+</script>
+</form>
+<?php
+}
+
+
+/**
+ * Prints the dropdown menu for the articles per page selector for the news articles list
+ *
+ */
+function printArticlesPerPageDropdown() {
+	global $_zp_zenpage,$_zp_zenpage_currentadminnewspage;
+	$currentpage = $_zp_zenpage_currentadminnewspage;
+?>
+<form name="AutoListBox5" id="articlesperpagedropdown" method="POST" style="float: left; margin-left: 10px;"	action="#">
+	<select name="ListBoxURL" size="1"	onchange="gotoLink(this.form)">
+	<?php
+	$articles_page = array('','','','','');
+	if(isset($_GET['articles_page'])) {
+		switch ($_GET['articles_page']) {
+			case 'all':
+				$articles_page[0] = "selected='selected'";
+				break;
+			case '15':
+				$articles_page[1] = "selected='selected'";
+				break;
+			case '30':
+				$articles_page[2] = "selected='selected'";
+				break;
+			case '60':
+				$articles_page[3] = "selected='selected'";
+				break;
+		}
+	} else {
+		$articles_page[1] = "selected='selected'";
+	}
+	echo "<option $articles_page[1] value='admin-news-articles.php?pagenr=".$currentpage.getNewsAdminOptionPath(true,true,true,true,false)."&amp;articles_page=15'>".gettext("15 per page")."</option>\n";
+	echo "<option $articles_page[2] value='admin-news-articles.php?pagenr=".$currentpage.getNewsAdminOptionPath(true,true,true,true,false)."&amp;articles_page=30'>".gettext("30 per page")."</option>\n";
+	echo "<option $articles_page[3] value='admin-news-articles.php?pagenr=".$currentpage.getNewsAdminOptionPath(true,true,true,true,false)."&amp;articles_page=60'>".gettext("60 per page")."</option>\n";
+	echo "<option $articles_page[0] value='admin-news-articles.php?pagenr=".$currentpage.getNewsAdminOptionPath(true,true,true,true,false)."&amp;articles_page=all'>".gettext("All")."</option>\n";
+	?>
+</select>
+	<script type="text/javascript">
 		// <!-- <![CDATA[
 		function gotoLink(form) {
 		var OptionIndex=form.ListBoxURL.selectedIndex;
@@ -892,7 +1067,7 @@ function addCategory(&$reports) {
 	}
 	// create new category
 	$show = getcheckboxState('show');
-	$cat = new ZenpageCategory($titlelink);
+	$cat = new ZenpageCategory($titlelink, true);
 	$notice = processPasswordSave($cat);
 	$cat->setPermalink(getcheckboxState('permalink'));
 	$cat->set('title',$title);
@@ -955,7 +1130,7 @@ function updateCategory(&$reports) {
 	}
 	//update category
 	$show = getcheckboxState('show');
-	$cat = new ZenpageCategory($titlelink);
+	$cat = new ZenpageCategory($titlelink, true);
 	$notice = processPasswordSave($cat);
 	$cat->setPermalink(getcheckboxState('permalink'));
 	$cat->set('title',$title);
@@ -1024,14 +1199,14 @@ function printCategoryListSortableTable($cat,$flag) {
 	?>
 	 <div class='page-list_row'>
 		<div class='page-list_title' >
-		<?php echo "<a href='admin-edit.php?category&amp;titlelink=".$cat->getTitlelink()."' title='".gettext('Edit this category')."'>".$cattitle."</a>".checkHitcounterDisplay($cat->getHitcounter()); ?>
+		<?php echo "<a href='admin-edit.php?newscategory&amp;titlelink=".$cat->getTitlelink()."' title='".gettext('Edit this category')."'>".$cattitle."</a>".checkHitcounterDisplay($cat->getHitcounter()); ?>
 		</div>
 		<div class="page-list_extra"><?php echo $count; ?> <?php echo gettext("articles"); ?>
 		</div>
 		<div class="page-list_iconwrapper">
 			<div class="page-list_icon"><?php
 			$password = $cat->getPassword();
-			if (!empty($password)  && (GALLERY_SECURITY != 'private')) {
+			if (!empty($password)) {
 				echo '<img src="../../images/lock.png" style="border: 0px;" alt="'.gettext('Password protected').'" title="'.gettext('Password protected').'" />';
 			}
 			?>
@@ -1102,7 +1277,7 @@ function printCategoryCheckboxListEntry($cat,$articleid,$option) {
 	}
 	$catname = $cat->getTitle();
 	$catlink = $cat->getTitlelink();
-	if($cat->isProtected() && ((GALLERY_SECURITY != 'private'))) {
+	if($cat->getPassword()) {
 		$protected = '<img src="'.WEBPATH.'/'.ZENFOLDER.'/images/lock.png" alt="'.gettext('password protected').'" />';
 	} else {
 		$protected = '';
@@ -1111,74 +1286,7 @@ function printCategoryCheckboxListEntry($cat,$articleid,$option) {
 	echo "<label for='cat".$catid."'><input name='cat".$catid."' id='cat".$catid."' type='checkbox' value='".$catid."' ".$selected." />".$catname." ".$protected."</label>\n";
 }
 
-/**
- * Prints the dropdown menu for the category selector for the news articles list
- *
- */
-function printCategoryDropdown() {
-	global $_zp_zenpage;
-	$currentpage = $_zp_zenpage->getCurrentAdminNewsPage();
-	$result = $_zp_zenpage->getAllCategories(false);
-	if(isset($_GET['date'])) {
-		$datelink = "&amp;date=".$_GET['date'];
-		$datelinkall = "?date=".$_GET['date'];
-	} else {
-		$datelink = "";
-		$datelinkall ="";
-	}
 
-if(isset($_GET['category'])) {
-	$selected = '';
-	$category = sanitize($_GET['category']);
-} else {
-	$selected = "selected='selected'";
-	$category = "";
-}
-	?>
-	<form name ="AutoListBox2" id="categorydropdown" style="float:left" action="#" >
-	<select name="ListBoxURL" size="1" onchange="gotoLink(this.form)">
-		<?php
-		echo "<option $selected value='admin-news-articles.php?pagenr=".$currentpage.getNewsAdminOptionPath(false,true,true)."'>".gettext("All categories")."</option>\n";
-
-		foreach ($result as $cat) {
-
-
-
-			$catobj = new ZenpageCategory($cat['titlelink']);
-			// check if there are articles in this category. If not don't list the category.
-			$count = count($catobj->getArticles(0,'all'));
-			$count = " (".$count.")";
-			if($category == $cat['titlelink']) {
-				$selected = "selected='selected'";
-			} else {
-				$selected ="";
-			}
-			//This is much easier than hacking the nested list function to work with this
-			$getparents = $catobj->getParents();
-			$levelmark ='';
-			foreach($getparents as $parent) {
-				$levelmark .= '&raquo; ';
-			}
-			$title = $catobj->getTitle();
-			if (empty($title)) {
-				$title = '*'.$catobj->getTitlelink().'*';
-			}
-			if ($count != " (0)") {
-				echo "<option $selected value='admin-news-articles.php?pagenr=".$currentpage."&amp;category=".$catobj->getTitlelink().getNewsAdminOptionPath(false,true,true)."'>".$levelmark.$title.$count."</option>\n";
-			}
-		}
-		?>
-	</select>
-	<script language="JavaScript" type="text/javascript" >
-		// <!-- <![CDATA[
-		function gotoLink(form) {
-		var OptionIndex=form.ListBoxURL.selectedIndex;
-		parent.location = form.ListBoxURL.options[OptionIndex].value;}
-		// ]]> -->
-</script>
-</form>
-<?php
-}
 
 /**************************
 /* General functions
@@ -1302,7 +1410,7 @@ function printNestedItemsList($listtype='cats-sortablelist',$articleid='',$optio
  * @param array $reports The success messagees
  * @return array
  */
-function updateItemSortorder($mode='pages', &$reports) {
+function updateItemSortorder($mode='pages') {
 	if(!empty($_POST['order'])) { // if someone didn't sort anything there are no values!
 		$order = processOrder($_POST['order']);
 		$parents = array('NULL');
@@ -1322,8 +1430,9 @@ function updateItemSortorder($mode='pages', &$reports) {
 			$sql = "UPDATE " . $dbtable . " SET `sort_order` = '".implode('-',$orderlist)."', `parentid`= ".$myparent." WHERE `id`=" . $id;
 			query($sql);
 		}
+		return true;
 	}
-	$reports[] = "<br clear=\"all\"><p class='messagebox fade-message'>".gettext("Sort order saved.")."</p>";
+	return false;
 }
 
 /**
@@ -1413,7 +1522,7 @@ function getNewsPagesStatistic($option) {
 	global $_zp_zenpage;
 	switch($option) {
 		case "news":
-			$items = $_zp_zenpage->getNewsArticles();
+			$items = $_zp_zenpage->getArticles();
 			$type = gettext("Articles");
 			break;
 		case "pages":
@@ -1499,7 +1608,7 @@ function zenpageJSCSS() {
 function printZenpageIconLegend() { ?>
 	<ul class="iconlegend">
 	<?php
-	if (GALLERY_SECURITY != 'private') {
+	if (GALLERY_SECURITY == 'public') {
 		?>
 		<li><img src="../../images/lock.png" alt="" /><?php echo gettext("Has Password"); ?></li>	<li><img src="../../images/pass.png" alt="" /><img	src="../../images/action.png" alt="" /><img src="images/clock.png" alt="" /><?php echo gettext("Published/Not published/Scheduled for publishing"); ?></li>
 		<?php
@@ -1586,24 +1695,26 @@ function checkIfScheduled($object) {
  * @param string $object Object of the page or news article to check
  * @return string
  */
-function printPublishIconLink($object,$type) {
-	$urladd1 = "";$urladd2 = "";$urladd3 = "";
+function printPublishIconLink($object,$type,$linkback='') {
+	$urladd = '';
 	if($type == "news") {
-		if(isset($_GET['page'])) { $urladd1 = "&amp;page=".$_GET['page']; }
-		if(isset($_GET['date'])) { $urladd2 = "&amp;date=".$_GET['date']; }
-		if(isset($_GET['category'])) { $urladd3 = "&amp;category=".$_GET['category']; }
+		if(isset($_GET['pagenr'])) { $urladd .= "&amp;pagenr=".$_GET['pagenr']; }
+		if(isset($_GET['date'])) { $urladd .= "&amp;date=".$_GET['date']; }
+		if(isset($_GET['category'])) { $urladd .= "&amp;category=".html_encode($_GET['category']); }
+		if(isset($_GET['sortorder'])) { $urladd .= "&amp;sortorder=".$_GET['sortorder']; }
+		if(isset($_GET['articles_page'])) { $urladd .= "&amp;articles_page=".$_GET['articles_page']; }
 	}
 	if ($object->getDateTime() > date('Y-m-d H:i:s')) {
 		if ($object->getShow()) {
 			$title = gettext("Publish immediately (skip scheduling)");
 			?>
-			<a href="?skipscheduling=1&amp;titlelink=<?php echo html_encode($object->getTitlelink()).$urladd1.$urladd2.$urladd3; ?>&amp;XSRFToken=<?php echo getXSRFToken('update')?>" title="<?php echo $title; ?>">
+			<a href="?skipscheduling=1&amp;titlelink=<?php echo html_encode($object->getTitlelink()).$urladd; ?>&amp;XSRFToken=<?php echo getXSRFToken('update')?>" title="<?php echo $title; ?>">
 			<img src="images/clock.png" alt="<?php gettext("Scheduled for published"); ?>" title="<?php echo $title; ?>" /></a>
 			<?php
 		} else {
 			$title = gettext("Enable scheduled publishing");
 			?>
-			<a href="?publish=1&amp;titlelink=<?php echo html_encode($object->getTitlelink()).$urladd1.$urladd2.$urladd3; ?>&amp;XSRFToken=<?php echo getXSRFToken('update')?>" title="<?php echo $title; ?>">
+			<a href="?publish=1&amp;titlelink=<?php echo html_encode($object->getTitlelink()).$urladd; ?>&amp;XSRFToken=<?php echo getXSRFToken('update')?>" title="<?php echo $title; ?>">
 			<img src="../../images/action.png" alt="<?php echo gettext("Un-published"); ?>" title="<?php echo $title; ?>" /></a>
 			<?php
 		}
@@ -1611,7 +1722,7 @@ function printPublishIconLink($object,$type) {
 		if ($object->getShow()) {
 			$title = gettext("Un-publish");
 			?>
-			<a href="?publish=0&amp;titlelink=<?php echo html_encode($object->getTitlelink()).$urladd1.$urladd2.$urladd3; ?>&amp;XSRFToken=<?php echo getXSRFToken('update')?>" title="<?php echo $title; ?>">
+			<a href="?publish=0&amp;titlelink=<?php echo html_encode($object->getTitlelink()).$urladd; ?>&amp;XSRFToken=<?php echo getXSRFToken('update')?>" title="<?php echo $title; ?>">
 			<img src="../../images/pass.png" alt="<?php echo gettext("Published"); ?>" title="<?php echo $title; ?>" /></a>
 			<?php
 		} else {
@@ -1619,12 +1730,12 @@ function printPublishIconLink($object,$type) {
 			if(empty($dt)) {
 				$title = gettext("Publish");
 				?>
-				<a href="?publish=1&amp;titlelink=<?php echo html_encode($object->getTitlelink()).$urladd1.$urladd2.$urladd3; ?>&amp;XSRFToken=<?php echo getXSRFToken('update')?>">
+				<a href="?publish=1&amp;titlelink=<?php echo html_encode($object->getTitlelink()).$urladd; ?>&amp;XSRFToken=<?php echo getXSRFToken('update')?>">
 				<?php
 			} else {
 				$title = gettext("Publish (override expiration)");
 				?>
-				<a href="?publish=2&amp;titlelink=<?php echo html_encode($object->getTitlelink()).$urladd1.$urladd2.$urladd3; ?>&amp;XSRFToken=<?php echo getXSRFToken('update')?>">
+				<a href="?publish=2&amp;titlelink=<?php echo html_encode($object->getTitlelink()).$urladd; ?>&amp;XSRFToken=<?php echo getXSRFToken('update')?>">
 				<?php
 			}
 			?>
@@ -1700,7 +1811,7 @@ function is_AdminEditPage($page) {
 			}
 			break;
 		case "category":
-			if(isset($_GET['category'])) {
+			if(isset($_GET['newscategory'])) {
 				return TRUE;
 			} else {
 				return FALSE;
@@ -1713,8 +1824,9 @@ function is_AdminEditPage($page) {
  * Processes the check box bulk actions
  *
  */
-function processZenpageBulkActions($type,&$reports) {
+function processZenpageBulkActions($type) {
 	global $_zp_zenpage;
+	$action = false;
 	if (isset($_POST['ids'])) {
 		//echo "action for checked items:". $_POST['checkallaction'];
 		$action = sanitize($_POST['checkallaction']);
@@ -1735,39 +1847,18 @@ function processZenpageBulkActions($type,&$reports) {
 					}
 					$tags = sanitize($tags, 3);
 				}
-				$n = 0;
-				switch($action) {
-					case 'deleteall':
-						$message = gettext('Selected items deleted');
-						break;
-					case 'showall':
-						$message = gettext('Selected items published');
-						break;
-					case 'hideall':
-						$message = gettext('Selected items unpublished');
-						break;
-					case 'commentson':
-						$message = gettext('Comments enabled for selected items');
-						break;
-					case 'commentsoff':
-						$message = gettext('Comments disabled for selected items');
-						break;
-					case 'resethitcounter':
-						$message = gettext('Hitcounter for selected items');
-						break;
-					case 'addtags':
-						$message = gettext('Tags added to selected items');
-						break;
-					case 'cleartags':
-						$message = gettext('Tags cleared from selected items');
-						break;
-					case 'alltags':
-						$message = gettext('Tags added to articles of selected items');
-						break;
-					case 'clearalltags':
-						$message = gettext('Tags cleared from articles of selected items');
-						break;
+				if ($action == 'addcats') {
+					foreach ($_POST as $key => $value) {
+						$key = postIndexDecode($key);
+						if (substr($key, 0, 3) == 'cat') {
+							if ($value) {
+								$cats[] = substr($key, 3);
+							}
+						}
+					}
+					$cats = sanitize($cats, 3);
 				}
+				$n = 0;
 				foreach ($links as $titlelink) {
 					$class = 'Zenpage'.$type;
 					$obj = new $class($titlelink);
@@ -1800,6 +1891,23 @@ function processZenpageBulkActions($type,&$reports) {
 								$newsobj->save();
 							}
 							break;
+						case 'addcats':
+							$catarray = array();
+							$allcats = $obj->getCategories();
+							foreach($cats as $cat) {
+								$catitem = $_zp_zenpage->getCategory($cat);
+								$catarray[] = $catitem['titlelink']; //to use the setCategories method we need an array with just the titlelinks!
+							}
+							$allcatsarray = array();
+							foreach($allcats as $allcat) {
+								$allcatsarray[] = $allcat['titlelink']; //same here!
+							}
+							$mycats = array_unique(array_merge($catarray, $allcatsarray));
+							$obj->setCategories($catarray);
+							break;
+						case 'clearcats':
+							$obj->setCategories(array());
+							break;
 						case 'showall':
 							$obj->set('show',1);
 							break;
@@ -1818,9 +1926,54 @@ function processZenpageBulkActions($type,&$reports) {
 					}
 					$obj->save();
 				}
-				if(!is_null($message)) $reports[] = "<p class='messagebox fade-message'>".$message."</p>";
 			}
 		}
 	}
+	return $action;
+}
+
+function zenpageBulkActionMessage($action) {
+	switch($action) {
+		case 'deleteall':
+			$message = gettext('Selected items deleted');
+			break;
+		case 'showall':
+			$message = gettext('Selected items published');
+			break;
+		case 'hideall':
+			$message = gettext('Selected items unpublished');
+			break;
+		case 'commentson':
+			$message = gettext('Comments enabled for selected items');
+			break;
+		case 'commentsoff':
+			$message = gettext('Comments disabled for selected items');
+			break;
+		case 'resethitcounter':
+			$message = gettext('Hitcounter for selected items');
+			break;
+		case 'addtags':
+			$message = gettext('Tags added to selected items');
+			break;
+		case 'cleartags':
+			$message = gettext('Tags cleared from selected items');
+			break;
+		case 'alltags':
+			$message = gettext('Tags added to articles of selected items');
+			break;
+		case 'clearalltags':
+			$message = gettext('Tags cleared from articles of selected items');
+			break;
+		case 'addcats':
+			$message = gettext('Categories added to selected items');
+			break;
+		case 'clearcats':
+			$message = gettext('Categories cleared from selected items');
+			break;
+	}
+	if(isset($message)) {
+		return "<p class='messagebox fade-message'>".$message."</p>";
+	}
+	return false;
 }
 ?>

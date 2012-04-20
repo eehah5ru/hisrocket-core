@@ -13,8 +13,8 @@ class ZenpageCategory extends ZenpageRoot {
 	var $manage_some_rights = ZENPAGE_NEWS_RIGHTS;
 	var $view_rights = VIEW_NEWS_RIGHTS;
 
-	function ZenpageCategory($catlink, $create=NULL) {
-		$new = parent::PersistentObject('news_categories', array('titlelink'=>$catlink), NULL, true, empty($catlink), $create);
+	function __construct($catlink, $create=NULL) {
+		$new = parent::PersistentObject('news_categories', array('titlelink'=>$catlink), 'titlelink', true, empty($catlink), $create);
 	}
 
 	/**
@@ -59,7 +59,11 @@ class ZenpageCategory extends ZenpageRoot {
 	function setUser($user) { $this->set('user', $user);	}
 
 	function getPassword() {
-		return $this->get('password');
+			if (GALLERY_SECURITY != 'public') {
+			return NULL;
+		} else {
+			return $this->get('password');
+		}
 	}
 
 	/**
@@ -241,9 +245,15 @@ class ZenpageCategory extends ZenpageRoot {
 			return true;
 		}
 		if (zp_loggedin($action)) {
+			if ($action == LIST_RIGHTS && $this->getShow()) {
+				return true;
+			}
 			$mycategories = $_zp_current_admin_obj->getObjects('news');
 			if (!empty($mycategories)) {
-				if (in_array($this->getTitlelink(), $mycategories)) {
+				$allowed = $this->getParents();
+				array_unshift($allowed, $this->getTitlelink());
+				$overlap = array_intersect($mycategories, $allowed);
+				if (!empty($overlap)) {
 					return true;
 				}
 			}
@@ -258,7 +268,7 @@ class ZenpageCategory extends ZenpageRoot {
 	 *
 	 *
 	 * @param int $articles_per_page The number of articles to get
-	 * @param string $published "published" for published articles
+	 * @param string $published "published" for published articles,
 	 *													"published-unpublished" for published articles only from an unpublished category,
 	 * 													"unpublished" for unpublished articles,
 	 * 													"sticky" for sticky articles (published or not!) for Admin page use only,
@@ -278,7 +288,7 @@ class ZenpageCategory extends ZenpageRoot {
 		$_zp_zenpage->processExpired('news');
 		if (empty($published)) {
 			$published = "published";
-			if(zp_loggedin(ZENPAGE_NEWS_RIGHTS | VIEW_NEWS_RIGHTS)) {
+			if(zp_loggedin(MANAGE_ALL_NEWS_RIGHTS)) {
 				$published = "all";
 			}
 		}
@@ -378,6 +388,18 @@ class ZenpageCategory extends ZenpageRoot {
 		}
 		return $result;
 	}
+	
+	
+	/**
+ * Returns the full path to a news category
+ *
+ * @param string $catlink The category link of a category
+ *
+ * @return string
+ */
+function getCategoryLink() {
+	return $this->getNewsCategoryPath().urlencode($this->getTitlelink());
+}
 
 
 } // zenpage news category class end

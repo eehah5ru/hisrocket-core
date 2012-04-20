@@ -14,7 +14,7 @@
 $plugin_is_filter = 9|CLASS_PLUGIN;
 $plugin_description = gettext('Provides a means for handling arbitrary file types. (No rendering provided!)');
 $plugin_author = "Stephen Billard (sbillard)";
-$plugin_version = '1.4.1';
+$plugin_version = '1.4.2';
 
 foreach (get_AnyFile_suffixes() as $suffix) {
 	addPluginType($suffix, 'AnyFile');
@@ -80,7 +80,7 @@ class AnyFile extends TextObject {
 	 * @param string $filename the filename of the text file
 	 * @return TextObject
 	 */
-	function AnyFile($album, $filename) {
+	function __construct($album, $filename) {
 
 		$this->watermark = getOption('AnyFile_watermark');
 		$this->watermarkDefault = getOption('AnyFile_watermark_default_images');
@@ -139,7 +139,7 @@ class AnyFile extends TextObject {
 	 */
 	function getSizedImage($size) {
 		$width = $this->getWidth();
-		$height = $this->getHeight;
+		$height = $this->getHeight();
 		if ($width > $height) {	//portrait
 			$height = $height * $size/$width;
 		} else {

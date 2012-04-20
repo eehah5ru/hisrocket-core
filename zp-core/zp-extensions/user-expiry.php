@@ -22,6 +22,7 @@
  * current date if adding the interval would not bring him up-to-date.)
  *
  *
+ * @author Stephen Billard (sbillard)
  * @package plugins
  * @subpackage usermanagement
  */
@@ -31,7 +32,7 @@
 $plugin_is_filter = 5|CLASS_PLUGIN;
 $plugin_description = gettext("Provides management of users based on when they were created.");
 $plugin_author = "Stephen Billard (sbillard)";
-$plugin_version = '1.4.1';
+$plugin_version = '1.4.2';
 
 $option_interface = 'user_expiry';
 

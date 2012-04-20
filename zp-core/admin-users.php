@@ -8,7 +8,6 @@
 
 define('OFFSET_PATH', 1);
 define('USERS_PER_PAGE',10);
-require_once(dirname(__FILE__).'/admin-functions.php');
 require_once(dirname(__FILE__).'/admin-globals.php');
 
 admin_securityChecks(NO_RIGHTS, currentRelativeURL(__FILE__));
@@ -85,10 +84,17 @@ if (isset($_GET['action'])) {
 						if ($pass == trim(sanitize($_POST[$i.'-adminpass_2'])) && strlen($_POST[$i.'-adminpass']) == strlen($_POST[$i.'-adminpass_2'])) {
 							if (isset($_POST[$i.'-newuser'])) {
 								$newuser = $user;
-								$what = 'new';
-								$userobj = $_zp_authority->newAdministrator('');
-								$userobj->transient = false;
-								$userobj->setUser($user);
+								$userobj = $_zp_authority->getAnAdmin(array('`user`=' => $user, '`valid`>' => 0));
+								if (is_object($userobj)) {
+									$notify = '?exists';
+									break;
+								} else {
+									$what = 'new';
+									$userobj = $_zp_authority->newAdministrator('');
+									$userobj->transient = false;
+									$userobj->setUser($user);
+									$updated = true;
+								}
 							} else {
 								$what = 'update';
 								$userobj = $_zp_authority->newAdministrator($user);
@@ -110,16 +116,21 @@ if (isset($_GET['action'])) {
 							}
 							if (empty($pass)) {
 								if ($newuser || @$_POST[$i.'-passrequired']) {
-									$msg = gettext('Password may not be empty!');
+									$msg = sprintf(gettext('%s password may not be empty!'),$admin_n);
 								} else {
 									$msg = '';
 								}
 							} else {
-								$msg = $userobj->setPass($pass);
-								$updated = true;
+								if ($pass != $userobj->getPass()) {
+									$msg = $userobj->setPass($pass);
+									$updated = true;
+								}
 							}
-							if (isset($_POST['delinkAlbum_'.$i])) {
-								$userobj->setAlbum(NULL);
+							$challenge = sanitize($_POST[$i.'-challengephrase']);
+							$response = sanitize($_POST[$i.'-challengeresponse']);
+							$info = $userobj->getChallengePhraseInfo();
+							if ($challenge != $info['challenge'] || $response != $info['response']) {
+								$userobj ->setChallengePhraseInfo($challenge, $response);
 								$updated = true;
 							}
 							$lang = sanitize($_POST[$i.'-admin_language'],3);
@@ -154,15 +165,23 @@ if (isset($_GET['action'])) {
 									$updated = true;
 								}
 							}
+							if (isset($_POST['delinkAlbum_'.$i])) {
+								$userobj->setAlbum(NULL);
+								$updated = true;
+							}
+							if (isset($_POST['createAlbum_'.$i])) {
+								$userobj->createPrimealbum();
+								$updated = true;
+							}
 							if ($updated) {
 								$returntab .= '&show-'.$user;
-							}
-							$msg = zp_apply_filter('save_user', $msg, $userobj, $what);
-							if (empty($msg)) {
-								$userobj->save();
-							} else {
-								$notify = '?mismatch=format&error='.urlencode($msg);
-								$error = true;
+								$msg = zp_apply_filter('save_user', $msg, $userobj, $what);
+								if (empty($msg)) {
+									$userobj->save();
+								} else {
+									$notify = '?mismatch=format&error='.urlencode($msg);
+									$error = true;
+								}
 							}
 						} else {
 							$notify = '?mismatch=password';
@@ -268,8 +287,15 @@ if ($_zp_reset_admin && !$refresh) {
 		$_zp_current_admin_obj = $_zp_reset_admin;
 		$clearPass = true;
 	}
+	$alladmins = array();
 	if (zp_loggedin(ADMIN_RIGHTS) && !$_zp_reset_admin) {
-		$temp = $admins = $_zp_authority->getAdministrators();
+		$admins = $_zp_authority->getAdministrators('allusers');
+		foreach ($admins as $key => $user) {
+			$alladmins[] = $user['user'];
+			if ($user['valid'] > 1) {
+				unset($admins[$key]);
+			}
+		}
 		if (empty($admins) || $_zp_null_account) {
 			$rights = ALL_RIGHTS;
 			$groupname = 'administrators';
@@ -367,6 +393,11 @@ if ($_zp_reset_admin && !$refresh) {
 	if (isset($_GET['migration_error'])) {
 		echo '<div class="errorbox fade-message">';
 		echo  "<h2>".gettext("Rights migration failed.")."</h2>";
+		echo '</div>';
+	}
+	if (isset($_GET['exists'])) {
+		echo '<div class="errorbox fade-message">';
+		echo  "<h2>".gettext("User id already used.")."</h2>";
 		echo '</div>';
 	}
 	if (isset($_GET['mismatch'])) {
@@ -499,11 +530,8 @@ function languageChange(id,lang) {
 	$id = 0;
 	$albumlist = array();
 	foreach ($gallery->getAlbums() as $folder) {
-		if (hasDynamicAlbumSuffix($folder)) {
-			$name = substr($folder, 0, -4); // Strip the .'.alb' suffix
-		} else {
-			$name = $folder;
-		}
+		$alb = new Album($gallery, $folder);
+		$name = $alb->getTitle();
 		$albumlist[$name] = $folder;
 	}
 	$background = '';
@@ -677,46 +705,67 @@ function languageChange(id,lang) {
 			}
 			?>
 				<input type="hidden" name="<?php echo $id; ?>-passrequired" id="passrequired-<?php echo $id; ?>" value="<?php echo (int) $clearPass; ?>" />
-				<p>
-				<label for="<?php echo $id ?>-adminpass"><?php echo gettext("Password:"); ?>
-				<input type="password" size="<?php echo TEXT_INPUT_SIZE; ?>" name="<?php echo $id ?>-adminpass"
-					value="<?php echo $x; ?>" onchange="$('#passrequired-<?php echo $id; ?>').val(1);" /></label>
-				</p>
-				<p>
-				<label for="<?php echo $id ?>-adminpass_2"><?php echo gettext("(repeat)"); ?><br />
-				<input type="password" size="<?php echo TEXT_INPUT_SIZE; ?>" name="<?php echo $id ?>-adminpass_2"
-					value="<?php echo $x; ?>" onchange="$('#passrequired-<?php echo $id; ?>').val(1);" /></label>
-				</p>
+				<fieldset><legend><?php echo gettext("Password:"); ?></legend>
+					<input type="password" size="<?php echo TEXT_INPUT_SIZE; ?>" name="<?php echo $id ?>-adminpass" value="<?php echo $x; ?>" onchange="$('#passrequired-<?php echo $id; ?>').val(1);"<?php if (in_array('password', $no_change)) echo ' disabled="disabled"'; ?> />
+				</fieldset>
+				<fieldset><legend><?php echo gettext("(repeat)"); ?></legend>
+					<input type="password" size="<?php echo TEXT_INPUT_SIZE; ?>" name="<?php echo $id ?>-adminpass_2" value="<?php echo $x; ?>" onchange="$('#passrequired-<?php echo $id; ?>').val(1);"<?php if (in_array('password', $no_change)) echo ' disabled="disabled"'; ?> />
+				</fieldset>
 				<?php
 				$msg = $_zp_authority->passwordNote();
 				if (!empty($msg)) {
-					echo $msg;
+					echo '<br />'.$msg.'<br />';
 				}
 				?>
-				<p>
-					<label for="<?php echo $id ?>-admin_name"><?php echo gettext("Full name:"); ?><br />
+				<br />
+				<?php
+				$challenge = $userobj->getChallengePhraseInfo();
+				?>
+				<fieldset><legend><?php echo gettext('Challenge phrase:')?></legend>
+					<input type="text" size="<?php echo TEXT_INPUT_SIZE; ?>" id="challengephrase-<?php echo $id ?>" name="<?php echo $id ?>-challengephrase"
+									value="<?php echo html_encode($challenge['challenge']); ?>" />
+				</fieldset>
+				<fieldset><legend><?php echo gettext('Challenge response:')?></legend>
+					<input type="text" size="<?php echo TEXT_INPUT_SIZE; ?>" id="challengeresponse-<?php echo $id ?>" name="<?php echo $id ?>-challengeresponse"
+									value="<?php echo html_encode($challenge['response']); ?>" />
+				</fieldset>
+				<br />
+				<fieldset><legend><?php echo gettext("Full name:"); ?></legend>
 					<input type="text" size="<?php echo TEXT_INPUT_SIZE; ?>" id="admin_name-<?php echo $id ?>" name="<?php echo $id ?>-admin_name"
-									value="<?php echo html_encode($userobj->getName()); ?>"<?php if ($userobj->getName() && in_array('name', $no_change)) echo ' disabled="disabled"'; ?> /></label>
-				</p>
-				<p>
-					<label for="<?php echo $id ?>-admin_email"><?php echo gettext("Email:"); ?><br />
+									value="<?php echo html_encode($userobj->getName()); ?>"<?php if ($userobj->getName() && in_array('name', $no_change)) echo ' disabled="disabled"'; ?> />
+				</fieldset>
+				<fieldset><legend><?php echo gettext("Email:"); ?></legend>
 					<input type="text" size="<?php echo TEXT_INPUT_SIZE; ?>" id="admin_email-<?php echo $id ?>" name="<?php echo $id ?>-admin_email"
-								value="<?php echo html_encode($userobj->getEmail()); ?>"<?php if ($userobj->getEmail() && in_array('email', $no_change)) echo ' disabled="disabled"'; ?> /></label>
-				</p>
+								value="<?php echo html_encode($userobj->getEmail()); ?>"<?php if ($userobj->getEmail() && in_array('email', $no_change)) echo ' disabled="disabled"'; ?> />
+				</fieldset>
+				<br />
 				<?php
 				$primeAlbum = $userobj->getAlbum();
-				if (!empty($primeAlbum)) {
-					?>
-					<p>
-					<label>
-						<input type="checkbox" name="delinkAlbum_<?php echo $id ?>" id="delinkAlbum_<?php echo $id ?>" value="1" <?php echo $alterrights; ?>/>
-						<?php printf(gettext('delink primary album (<em>%s</em>)'),$primeAlbum->name); ?>
-					</label>
-					</p>
-					<p class="notebox">
-						<?php echo gettext('The primary album was created in association with the user. It will be removed if the user is deleted. Delinking the album removes this association.'); ?>
-					</p>
-					<?php
+				if (zp_loggedin(MANAGE_ALL_ALBUM_RIGHTS)) {
+					if (empty($primeAlbum)) {
+						if (!($userobj->getRights() & (ADMIN_RIGHTS | MANAGE_ALL_ALBUM_RIGHTS))) {
+							?>
+							<p>
+								<label>
+									<input type="checkbox" name="createAlbum_<?php echo $id ?>" id="createAlbum_<?php echo $id ?>" value="1" <?php echo $alterrights; ?>/>
+									<?php echo gettext('create primary album'); ?>
+								</label>
+							</p>
+							<?php
+						}
+					} else {
+						?>
+						<p>
+							<label>
+								<input type="checkbox" name="delinkAlbum_<?php echo $id ?>" id="delinkAlbum_<?php echo $id ?>" value="1" <?php echo $alterrights; ?>/>
+								<?php printf(gettext('delink primary album <strong>%1$s</strong>(<em>%2$s</em>)'),$primeAlbum->getTitle(), $primeAlbum->name); ?>
+							</label>
+						</p>
+						<p class="notebox">
+							<?php echo gettext('The primary album was created in association with the user. It will be removed if the user is deleted. Delinking the album removes this association.'); ?>
+						</p>
+						<?php
+					}
 				}
 				$currentValue = $userobj->getLanguage();
 				?>
@@ -731,14 +780,7 @@ function languageChange(id,lang) {
 						?>
 						<li id="<?php echo $lang.'_'.$id; ?>"<?php if ($lang==$currentValue) echo ' class="currentLanguage"'; ?>>
 							<a onclick="javascript:languageChange('<?php echo $id; ?>','<?php echo $lang; ?>');" >
-							<?php
-							if (file_exists(SERVERPATH.'/'.ZENFOLDER.'/locale/'.$lang.'/flag.png')) {
-								$flag = WEBPATH.'/'.ZENFOLDER.'/locale/'.$lang.'/flag.png';
-							} else {
-								$flag = WEBPATH.'/'.ZENFOLDER.'/locale/missing_flag.png';
-							}
-							?>
-							<img src="<?php echo $flag; ?>" alt="<?php echo $text; ?>" title="<?php echo $text; ?>" />
+							<img src="<?php echo getLanguageFlag($lang); ?>" alt="<?php echo $text; ?>" title="<?php echo $text; ?>" />
 							</a>
 						</li>
 						<?php
@@ -763,7 +805,12 @@ function languageChange(id,lang) {
 				if ($current && $ismaster) {
 					echo '<p>'.gettext("The <em>master</em> account has full rights to all albums.").'</p>';
 				} else {
-					printManagedObjects('albums', $albumlist, $album_alter_rights, $user['id'], $id, $userobj->getRights(), gettext('user'));
+					if (is_object($primeAlbum)) {
+						$flag = array($primeAlbum->name);
+					} else {
+						$flag = array();
+					}
+					printManagedObjects('albums', $albumlist, $album_alter_rights, $user['id'], $id, $userobj->getRights(), gettext('user'), $flag);
 					if (getOption('zp_plugin_zenpage')) {
 						$pagelist = array();
 						$pages = $_zp_zenpage->getPages(false);
@@ -772,13 +819,13 @@ function languageChange(id,lang) {
 								$pagelist[get_language_string($page['title'])] = $page['titlelink'];
 							}
 						}
-						printManagedObjects('pages',$pagelist, $album_alter_rights, $user['id'], $id, $userobj->getRights(), gettext('user'));
+						printManagedObjects('pages',$pagelist, $album_alter_rights, $user['id'], $id, $userobj->getRights(), gettext('user'), NULL);
 						$newslist = array();
 						$categories = $_zp_zenpage->getAllCategories(false);
 						foreach ($categories as $category) {
 							$newslist[get_language_string($category['title'])] = $category['titlelink'];
 						}
-						printManagedObjects('news',$newslist, $album_alter_rights, $user['id'], $id, $userobj->getRights(), gettext('user'));
+						printManagedObjects('news',$newslist, $album_alter_rights, $user['id'], $id, $userobj->getRights(), gettext('user'), NULL);
 					}
 				}
 				?>
@@ -832,8 +879,9 @@ if ($_zp_authority->getVersion() < $_zp_authority->supports_version) {
 	<?php
 }
 ?>
-<script language="javascript" type="text/javascript">
+<script type="text/javascript">
 	//<!-- <![CDATA[
+	var admins = ["<?php echo implode('","', $alladmins); ?>"];
 	function checkNewuser() {
 		newuserid = <?php echo ($id-1); ?>;
 		newuser = $('#adminuser-'+newuserid).val().replace(/^\s+|\s+$/g,"");;
@@ -842,8 +890,8 @@ if ($_zp_authority->getVersion() < $_zp_authority->supports_version) {
 			alert('<?php echo js_encode(gettext('User names may not contain "?", "&", or quotation marks.')); ?>');
 			return false;
 		}
-		for (i=newuserid-1;i>=0;i--) {
-			if ($('#adminuser-'+i).val() == newuser) {
+		for (i=0;i<admins.length;i++) {
+			if (admins[i] == newuser) {
 				alert(sprintf('<?php echo js_encode(gettext('The user "%s" already exists.')); ?>',newuser));
 				return false;
 			}

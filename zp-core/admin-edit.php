@@ -9,7 +9,6 @@
 /* Don't put anything before this line! */
 define('OFFSET_PATH', 1);
 
-require_once(dirname(__FILE__).'/admin-functions.php');
 require_once(dirname(__FILE__).'/admin-globals.php');
 
 admin_securityChecks(ALBUM_RIGHTS, $return = currentRelativeURL(__FILE__));
@@ -23,6 +22,7 @@ if (isset($_GET['tab'])) {
 $gallery = new Gallery();
 $subalbum_nesting = 1;
 $gallery_nesting = 1;
+define('ADMIN_IMAGES_STEP', 5);	//	the step for imges per page
 $imagesTab_imageCount = 10;
 processEditSelection($subtab);
 
@@ -59,29 +59,49 @@ if (isset($_GET['action'])) {
 		/******************************************************************************/
 		case 'savealbumorder':
 			XSRFdefender('savealbumorder');
-			$gallery->setSortDirection(0);
-			$gallery->setSortType('manual');
-			$gallery->save();
-			$notify = postAlbumSort(NULL);
-			if (isset($_POST['ids'])) {
-				$action = processAlbumBulkActions();
-				if(!empty($action)) $action = '&bulkmessage='.$action;
+			if ($_POST['checkallaction']=='noaction') {
+				$notify = postAlbumSort(NULL);
+				if ($notify) {
+					if ($notify === true) {
+						$notify = '&saved';
+					} else {
+						$notify = '&saved'.$notify;
+					}
+					$_zp_gallery->setSortDirection(0);
+					$_zp_gallery->setSortType('manual');
+					$_zp_gallery->save();
+				}
+			} else {
+				$notify = processAlbumBulkActions();
+				if(!empty($notify)) {
+					$notify = '&bulkmessage='.$notify;
+				}
 			}
-			header('Location: ' . FULLWEBPATH . '/' . ZENFOLDER . '/admin-edit.php?page=edit'.$action.'&saved'.$notify);
+			header('Location: ' . FULLWEBPATH . '/' . ZENFOLDER . '/admin-edit.php?page=edit'.$notify);
 			exit();
 			break;
 		case 'savesubalbumorder':
 			XSRFdefender('savealbumorder');
-			$album = new Album($gallery, $folder);
-			$album->setSubalbumSortType('manual');
-			$album->setSortDirection('album', 0);
-			$album->save();
-			$notify = postAlbumSort($album->get('id'));
-			if (isset($_POST['ids'])) {
-				$action = processAlbumBulkActions();
-				if(!empty($action)) $action = '&bulkmessage='.$action;
+			if ($_POST['checkallaction']=='noaction') {
+				$notify = postAlbumSort($album->get('id'));
+				if ($notify) {
+					if ($notify === true) {
+						$notify = '&saved';
+					} else {
+						$notify = '&saved'.$notify;
+					}
+					$album = new Album($gallery, $folder);
+					$album->setSubalbumSortType('manual');
+					$album->setSortDirection('album', 0);
+					$album->save();
+				}
+			} else {
+				$notify = processAlbumBulkActions();
+				if(!empty($notify)) {
+					$notify = '&bulkmessage='.$notify;
+				}
 			}
-			header('Location: ' . FULLWEBPATH . '/' . ZENFOLDER . '/admin-edit.php?page=edit'.$action.'&album='.$folder.'&tab=subalbuminfo&saved'.$notify);
+			header('Location: ' . FULLWEBPATH . '/' . ZENFOLDER . '/admin-edit.php?page=edit&album='.$folder.'&tab=subalbuminfo'.$notify);
 			exit();
 			break;
 		case 'sorttags':
@@ -207,10 +227,9 @@ if (isset($_GET['action'])) {
 						$returntab = '&tagsort='.$tagsort.'&tab=imageinfo';
 
 						if (isset($_POST['ids'])) {	//	process bulk actions, not individual image actions.
-							$action = processBulkImageActions($album);
+							$action = processImageBulkActions($album);
 							if(!empty($action)) $notify = '&bulkmessage='.$action;
 						} else {
-
 							if (isset($_POST['thumb'])) {
 								$thumbnail = sanitize_numeric($_POST['thumb'])-1;
 							} else {
@@ -243,6 +262,8 @@ if (isset($_GET['action'])) {
 												$image->set('total_votes', 0);
 												$image->set('used_ips', 0);
 											}
+											$image->setPublishDate(sanitize($_POST['publishdate-'.$i]));
+											$image->setExpireDate(sanitize($_POST['expirationdate-'.$i]));
 											$image->setTitle(process_language_string_save("$i-title", 2));
 											$image->setDesc(process_language_string_save("$i-desc", 0));
 											$image->setLocation(process_language_string_save("$i-location", 3));
@@ -253,19 +274,13 @@ if (isset($_GET['action'])) {
 											$image->setCopyright(process_language_string_save("$i-copyright", 1));
 											if (isset($_POST[$i.'-oldrotation'])) {
 												$oldrotation = sanitize_numeric($_POST[$i.'-oldrotation']);
-											} else {
-												$oldrotation = 0;
-											}
-											if (isset($_POST[$i.'-rotation'])) {
 												$rotation = sanitize_numeric($_POST[$i.'-rotation']);
-											} else {
-												$rotation = 0;
-											}
-											if ($rotation != $oldrotation) {
-												$image->set('EXIFOrientation', $rotation);
-												$image->updateDimensions();
-												$album = $image->getAlbum();
-												$gallery->clearCache(SERVERCACHE . '/' . $album->name);
+												if ($rotation != $oldrotation) {
+													$image->set('EXIFOrientation', $rotation);
+													$image->updateDimensions();
+													$album = $image->getAlbum();
+													$_zp_gallery->clearCache(SERVERCACHE . '/' . $album->name);
+												}
 											}
 											$tagsprefix = 'tags_'.$i.'-';
 											$tags = array();
@@ -616,6 +631,12 @@ $checkarray_albums = array_merge($checkarray_images,
 																	array(gettext('Add tags to images') => 'alltags',
 																				gettext('Clear tags of images') => 'clearalltags')
 																	);
+$checkarray_images = array_merge($checkarray_images,
+																	array(gettext('Move') => 'moveimages',
+																				gettext('Copy') =>'copyimages')
+																	);
+$checkarray_images = zp_apply_filter('bulk_image_actions', $checkarray_images);
+$checkarray_albums = zp_apply_filter('bulk_album_actions', $checkarray_albums);
 
 /** EDIT ****************************************************************************/
 /************************************************************************************/
@@ -710,38 +731,8 @@ $alb = removeParentAlbumNames($album);
 
 		</div>
 	<?php
-	} else if (isset($_GET['mcrerr'])) {
-		?>
-		<div class="errorbox fade-message">
-			<h2>
-			<?php
-			switch (sanitize_numeric($_GET['mcrerr'])) {
-				case 2:
-					echo  gettext("Image already exists.");
-					break;
-				case 3:
-					echo  gettext("Album already exists.");
-					break;
-				case 4:
-					echo  gettext("Cannot move, copy, or rename to a subalbum of this album.");
-					break;
-				case 5:
-					echo  gettext("Cannot move, copy, or rename to a dynamic album.");
-					break;
-				case 6:
-					echo	gettext('Cannot rename an image to a different suffix');
-					break;
-				case 7:
-					echo gettext('Album delete failed');
-					break;
-				default:
-					echo  gettext("There was an error with a move, copy, or rename operation.");
-					break;
-			}
-			?>
-			</h2>
-		</div>
-		<?php
+	} else {
+		reportMCERR();
 	}
 	if (isset($_GET['edit_error'])) {
 		?>
@@ -756,7 +747,7 @@ $alb = removeParentAlbumNames($album);
 		?>
 		<div class="errorbox fade-message">
 			<h2>
-			<?php echo gettext('The form post is incomplete.'); ?>
+			<?php echo gettext('The image edit form submission has been truncated. Try displaying fewer images on a page.'); ?>
 			</h2>
 		</div>
 		<?php
@@ -771,12 +762,11 @@ $alb = removeParentAlbumNames($album);
 	<?php
 	}
 
-	zp_apply_filter('admin_note','albums', $subtab);
 	if (isset($_GET['uploaded'])) {
 		?>
 		<div class="messagebox fade-message">
 			<h2><?php echo gettext("Upload complete"); ?></h2>
-			<?php echo zp_apply_filter('get_upload_header_text',gettext('Your files have been uploaded.')); ?>
+			<?php echo gettext('Your files have been uploaded.'); ?>
 		</div>
 		<?php
 	}
@@ -810,6 +800,9 @@ $alb = removeParentAlbumNames($album);
 				break;
 			case 'resethitcounter':
 				$message = gettext('Hitcounter for selected items');
+				break;
+			default:
+				$message = $action;
 				break;
 		}
 		if (isset($message)) {
@@ -971,11 +964,11 @@ $alb = removeParentAlbumNames($album);
 		<div id="tab_imageinfo" class="tabbox">
 		<?php
 		zp_apply_filter('admin_note','albums', $subtab);
-		$numsteps = ceil(max($allimagecount,$imagesTab_imageCount)/10);
+		$numsteps = ceil(max($allimagecount,$imagesTab_imageCount)/ADMIN_IMAGES_STEP);
 		if ($numsteps) {
 			$steps = array();
 			for ($i=1;$i<=$numsteps;$i++) {
-				$steps[] = $i*10;
+				$steps[] = $i*ADMIN_IMAGES_STEP;
 			}
 			?>
 			<div style="padding-bottom:10px;">
@@ -985,7 +978,7 @@ $alb = removeParentAlbumNames($album);
 			<?php
 		}
 		if ($allimagecount) {
-			?>
+		?>
 		<form name="albumedit2"	action="?page=edit&amp;action=save<?php echo "&amp;album=" . pathurlencode($album->name); ?>"	method="post" autocomplete="off">
 			<?php XSRFToken('albumedit'); ?>
 			<input type="hidden" name="album"	value="<?php echo $album->name; ?>" />
@@ -1076,7 +1069,7 @@ $alb = removeParentAlbumNames($album);
 			?>
 				<td colspan="4">
 				<input type="hidden" name="<?php echo $currentimage; ?>-filename"	value="<?php echo $image->filename; ?>" />
-				<table border="0" class="formlayout" id="image-<?php echo $currentimage; ?>">
+				<table style="border:none" class="formlayout" id="image-<?php echo $currentimage; ?>">
 					<tr>
 						<td valign="top" width="150" rowspan="17">
 
@@ -1143,6 +1136,7 @@ $alb = removeParentAlbumNames($album);
 									<input type="checkbox" name="<?php echo $currentimage; ?>reset_hitcounter" />
 									<?php echo sprintf(gettext("Reset hitcounter (%u hits)"), $hc); ?>
 								</label>
+
 								<?php
 								$tv = $image->get('total_value');
 								$tc = $image->get('total_votes');
@@ -1163,9 +1157,63 @@ $alb = removeParentAlbumNames($album);
 									</label>
 									<?php
 								}
-								?>
 
-							<br clear="all" />
+								$publishdate = $image->getPublishDate();
+								$expirationdate =  $image->getExpireDate();
+							?>
+							<script type="text/javascript">
+								// <!-- <![CDATA[
+								$(function() {
+									$("#publishdate-<?php echo $currentimage; ?>,#expirationdate-<?php echo $currentimage; ?>").datepicker({
+										showOn: 'button',
+										buttonImage: '../zp-core/images/calendar.png',
+										buttonText: '<?php echo gettext("calendar"); ?>',
+										buttonImageOnly: true
+									});
+									$('#publishdate-<?php echo $currentimage; ?>').change(function() {
+										var today = new Date();
+										var pub = $('#publishdate-<?php echo $currentimage; ?>').datepicker('getDate');
+										if(pub.getTime() > today.getTime()) {
+											$(".scheduledpublishing-<?php echo $currentimage; ?>").html('<br /><?php echo addslashes(gettext('Future publishing date.')); ?>');
+										} else {
+											$(".scheduledpublishing-<?php echo $currentimage; ?>").html('');
+										}
+									});
+									$('#expirationdate-<?php echo $currentimage; ?>').change(function() {
+										var today = new Date();
+										var expiry = $('#expirationdate-<?php echo $currentimage; ?>').datepicker('getDate');
+										if(expiry.getTime() > today.getTime()) {
+											$(".expire<-<?php echo $currentimage; ?>").html('');
+										} else {
+											$(".expire-<?php echo $currentimage; ?>").html('<br /><?php echo addslashes(gettext('Expired!')); ?>');
+										}
+									});
+								});
+							// ]]> -->
+					</script>
+						<br clear="both" />
+						<hr />
+						<p>
+							<label for="publishdate-<?php echo $currentimage; ?>"><?php echo gettext('Publish date'); ?> <small>(YYYY-MM-DD)</small></label>
+								<br /><input value="<?php echo $publishdate; ?>" type="text" size="20" maxlength="30" name="publishdate-<?php echo $currentimage; ?>" id="publishdate-<?php echo $currentimage; ?>" />
+							<strong class="scheduledpublishing-<?php echo $currentimage; ?>" style="color:red">
+							<?php
+							if(!empty($publishdate) && ($publishdate > date('Y-m-d H:i:s'))) {
+								echo '<br />'.gettext('Future publishing date.');
+							}
+							?>
+							</strong>
+							<br /><br />
+							<label for="expirationdate-<?php echo $currentimage; ?>"><?php echo gettext('Expiration date'); ?> <small>(YYYY-MM-DD)</small></label>
+								<br /><input value="<?php echo $expirationdate; ?>" type="text" size="20" maxlength="30" name="expirationdate-<?php echo $currentimage; ?>" id="expirationdate-<?php echo $currentimage; ?>" />
+							<strong class="expire-<?php echo $currentimage; ?>" style="color:red">
+							<?php
+							if(!empty($expirationdate) && ($expirationdate <= date('Y-m-d H:i:s'))) {
+								echo '<br />'.gettext('Expired!');
+							}
+							?>
+							</strong>
+						</p>
 						</div>
 
 						<h2 class="h2_bordered_edit"><?php echo gettext("Utilities"); ?></h2>
@@ -1173,23 +1221,23 @@ $alb = removeParentAlbumNames($album);
 						<!-- Move/Copy/Rename this image -->
 						<label class="checkboxlabel">
 								<input type="radio" id="move-<?php echo $currentimage; ?>" name="<?php echo $currentimage; ?>-MoveCopyRename" value="move"
-									onclick="toggleMoveCopyRename('<?php echo $currentimage; ?>', 'movecopy');"  /> <?php echo gettext("Move");?>
+									onclick="toggleMoveCopyRename('<?php echo $currentimage; ?>', 'move');"  /> <?php echo gettext("Move");?>
 						</label>
 						<label class="checkboxlabel">
 								<input type="radio" id="copy-<?php echo $currentimage; ?>" name="<?php echo $currentimage; ?>-MoveCopyRename" value="copy"
-									onclick="toggleMoveCopyRename('<?php echo $currentimage; ?>', 'movecopy');"  /> <?php echo gettext("Copy");?>
+									onclick="toggleMoveCopyRename('<?php echo $currentimage; ?>', 'copy');"  /> <?php echo gettext("Copy");?>
 						</label>
 						<label class="checkboxlabel">
 								<input type="radio" id="rename-<?php echo $currentimage; ?>" name="<?php echo $currentimage; ?>-MoveCopyRename" value="rename"
 									onclick="toggleMoveCopyRename('<?php echo $currentimage; ?>', 'rename');"  /> <?php echo gettext("Rename File");?>
-
 						</label>
 						<label class="checkboxlabel">
 								<input type="radio" id="Delete-<?php echo $currentimage; ?>" name="<?php echo $currentimage; ?>-MoveCopyRename" value="delete"
-									onclick="image_deleteconfirm(this, '<?php echo $currentimage; ?>','<?php echo gettext("Are you sure you want to select this image for deletion?"); ?>')" /> <?php echo gettext("Delete image") ?>
+									onclick="toggleMoveCopyRename('<?php echo $currentimage; ?>', '');deleteConfirm('Delete-<?php echo $currentimage; ?>', '<?php echo $currentimage; ?>','<?php echo gettext("Are you sure you want to select this image for deletion?"); ?>')" /> <?php echo gettext("Delete image") ?>
 						</label>
-						<div id="movecopydiv-<?php echo $currentimage; ?>"
-							style="padding-top: .5em; padding-left: .5em; display: none;"><?php echo gettext("to"); ?>:
+						<br clear='all'>
+						<div id="movecopydiv-<?php echo $currentimage; ?>" style="padding-top: .5em; padding-left: .5em; display: none;">
+						<?php echo gettext("to"); ?>:
 						<select id="albumselectmenu-<?php echo $currentimage; ?>"
 							name="<?php echo $currentimage; ?>-albumselect" onchange="">
 							<?php
@@ -1215,7 +1263,8 @@ $alb = removeParentAlbumNames($album);
 						<br /><p class="buttons"><a href="javascript:toggleMoveCopyRename('<?php echo $currentimage; ?>', '');"><img src="images/reset.png" alt="" /><?php echo gettext("Cancel");?></a>
 						</p>
 						</div>
-						<div id="renamediv-<?php echo $currentimage; ?>" style="padding-top: .5em; padding-left: .5em; display: none;"><?php echo gettext("to"); ?>:
+						<div id="renamediv-<?php echo $currentimage; ?>" style="padding-top: .5em; padding-left: .5em; display: none;">
+						<?php echo gettext("to"); ?>:
 						<input name="<?php echo $currentimage; ?>-renameto" type="text" value="<?php echo $image->filename;?>" /><br />
 						<br /><p class="buttons"><a	href="javascript:toggleMoveCopyRename('<?php echo $currentimage; ?>', '');"><img src="images/reset.png" alt="" /><?php echo gettext("Cancel");?></a>
 						</p>
@@ -1402,7 +1451,7 @@ $alb = removeParentAlbumNames($album);
 											$display = $_zp_exifvars[$field][3];
 											if ($display) {
 												$label = $_zp_exifvars[$field][2];
-												$data .= "<tr><td align=\"right\" >$label: </td> <td>$value</td></tr>\n";
+												$data .= "<tr><td align=\"right\" >$label: </td> <td>".html_encode($value)."</td></tr>\n";
 											}
 										}
 									}
@@ -1410,7 +1459,13 @@ $alb = removeParentAlbumNames($album);
 								if (empty($data)) {
 									echo gettext('None selected for display');
 								} else {
-									echo '<table class="metadata_table" >'.$data.'</table>';
+									?>
+									<div class="metadata_container">
+									<table class="metadata_table" >
+									<?php echo $data; ?>
+									</table>
+									</div>
+									<?php
 								}
 								?>
 							</td>
@@ -1499,7 +1554,7 @@ $alb = removeParentAlbumNames($album);
 			}
 			if (!empty($target_image)) {
 				?>
-				<script language="Javascript" type="text/javascript" >
+				<script type="text/javascript" >
 					// <!-- <![CDATA[
 					toggleExtraInfo('<?php echo $target_image_nr;?>', 'image', true);
 					// ]]> -->
@@ -1596,7 +1651,8 @@ if (isset($_GET['saved'])) {
 /*** EDIT ALBUM SELECTION *********************************************************************/
 
 } else { /* Display a list of albums to edit. */
-zp_apply_filter('admin_note','albums', '');?>
+zp_apply_filter('admin_note','albums', '');
+?>
 <h1><?php echo gettext("Edit Gallery"); ?></h1>
 <?php
 	displayDeleted(); /* Display a message if needed. Fade out and hide after 2 seconds. */
@@ -1615,6 +1671,16 @@ zp_apply_filter('admin_note','albums', '');?>
 		echo  "<h2>".sprintf(gettext("<em>%s</em> already exists."),sanitize($_GET['exists']))."</h2>";
 		echo '</div>';
 	}
+	if (isset($_GET['saved'])) {
+		?>
+		<div class="messagebox fade-message">
+			<h2>
+			<?php echo gettext("Changes applied") ?>
+			</h2>
+		</div>
+	<?php
+	}
+	reportMCERR();
 	if (isset($_GET['bulkmessage'])) {
 		$action = sanitize($_GET['bulkmessage']);
 		switch($action) {
@@ -1647,6 +1713,9 @@ zp_apply_filter('admin_note','albums', '');?>
 				break;
 			case 'clearalltags':
 				$message = gettext('Tags cleared for images of selected items');
+				break;
+			default:
+				$message = $action;
 				break;
 		}
 		echo '<div class="messagebox fade-message">';

@@ -9,25 +9,10 @@
  * @package admin
  */
 
-define('OFFSET_PATH', 4);
-require_once(dirname(dirname(dirname(__FILE__))).'/admin-functions.php');
+define('OFFSET_PATH', 3);
 require_once(dirname(dirname(dirname(__FILE__))).'/admin-globals.php');
 
-//zp-extensions variant
-//require_once(dirname(dirname(__FILE__)).'/admin-functions.php');
-//require_once(dirname(dirname(__FILE__)).'/admin-globals.php');
-
-$button_text = gettext('Download Statistics');
-$button_hint = gettext("Shows statistical graphs and info about your gallery's downloads if using the downloadList plugin.");
-$button_icon = WEBPATH.'/'.ZENFOLDER.'/images/bar_graph.png';
-$button_rights = ADMIN_RIGHTS;
-
 admin_securityChecks(ADMIN_RIGHTS, currentRelativeURL(__FILE__));
-
-if (getOption('zenphoto_release') != ZENPHOTO_RELEASE) {
-	header("Location: " . FULLWEBPATH . "/" . ZENFOLDER . "/setup.php");
-	exit();
-}
 
 if (!zp_loggedin(OVERVIEW_RIGHTS)) { // prevent nefarious access to this page.
 	header('Location: ' . FULLWEBPATH . '/' . ZENFOLDER . '/admin.php?from=' . currentRelativeURL(__FILE__));
@@ -48,7 +33,9 @@ function printBarGraph() {
 	global $gallery, $webpath;
 	//$limit = $from_number.",".$to_number;
 	$bargraphmaxsize = 400;
-	$items = query_full_array("SELECT `aux`,`data`FROM ".prefix('plugin_storage')." WHERE `type` = 'downloadList' AND `data` != 0 ORDER BY `data` DESC");
+	$maxvalue = 0;
+	$items = query_full_array("SELECT `aux`,`data` FROM ".prefix('plugin_storage')." WHERE `type` = 'downloadList' AND `data` != 0 ORDER BY `data` DESC");
+	$items = sortMultiArray($items, 'data', true, true, false, true);
 	if($items) {
 		$maxvalue = $items[0]['data'];
 		$no_statistic_message = "";

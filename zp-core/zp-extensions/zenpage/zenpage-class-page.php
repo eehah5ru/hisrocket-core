@@ -13,8 +13,8 @@ class ZenpagePage extends ZenpageItems {
 	var $manage_some_rights = ZENPAGE_PAGES_RIGHTS;
 	var $view_rights = VIEW_PAGES_RIGHTS;
 
-	function ZenpagePage($titlelink, $allowCreate=NULL) {
-		$new = parent::PersistentObject('pages', array('titlelink'=>$titlelink), NULL, true, empty($titlelink), $allowCreate);
+	function __construct($titlelink, $allowCreate=NULL) {
+		$new = parent::PersistentObject('pages', array('titlelink'=>$titlelink), 'titlelink', true, empty($titlelink), $allowCreate);
 	}
 
 	/**
@@ -50,7 +50,13 @@ class ZenpagePage extends ZenpageItems {
 	 *
 	 * @return string
 	 */
-	function getPassword() { return $this->get('password'); }
+	function getPassword() {
+			if (GALLERY_SECURITY != 'public') {
+			return NULL;
+		} else {
+			return $this->get('password');
+		}
+	}
 
 	/**
 	 * Sets the encrypted password
@@ -98,6 +104,8 @@ class ZenpagePage extends ZenpageItems {
 			$newobj->setTitle($newtitle);
 			$newobj->setSortOrder(NULL);
 			$newobj->setTags($this->getTags());
+			$newobj->setDateTime(date('Y-m-d H:i:s'));
+			$newobj->setShow(0);
 			$newobj->save();
 			return $newobj;
 		}
@@ -162,12 +170,12 @@ class ZenpagePage extends ZenpageItems {
 	}
 
 
+
 /**
  * Gets the sub pages recursivly by titlelink
-  * @param $all set true for all sub page levels (default) or false for only the direct sub level
  * @return array
  */
-	function getSubPages() {
+	function getPages() {
 		global $_zp_zenpage;
 		$subpages = array();
 		$sortorder = $this->getSortOrder();
@@ -181,8 +189,18 @@ class ZenpagePage extends ZenpageItems {
 		if(count($subpages) != 0) {
 			return $subpages;
 		} else {
-			return FALSE;
+			return array();
 		}
+	}
+
+/**
+ * Gets the sub pages recursivly by titlelink
+ * @return array
+ * @deprecated
+ */
+	function getSubPages() {
+		deprecated_function_notify(gettext('Use the Zenpage Page class method getPages().'));
+		return $this->getPages();
 	}
 
 	/**
@@ -245,6 +263,9 @@ class ZenpagePage extends ZenpageItems {
 			return true;
 		}
 		if (zp_loggedin($action)) {
+			if (GALLERY_SECURITY != 'public' && $this->getShow() && $action == LIST_RIGHTS) {
+				return LIST_RIGHTS;
+			}
 			if ($_zp_current_admin_obj->getUser() == $this->getAuthor()) {
 				return true;
 			}
@@ -257,5 +278,19 @@ class ZenpagePage extends ZenpageItems {
 		}
 		return false;
 	}
+
+	/**
+	* Returns full path to a specific page
+	*
+	* @return string
+	*/
+	function getPageLink() {
+		global $_zp_zenpage;
+		return $_zp_zenpage->getPagesLinkPath().urlencode($this->getTitlelink());
+	}
+
 }
+
+
+
 ?>

@@ -13,18 +13,13 @@
 $plugin_is_filter = 8|CLASS_PLUGIN;
 $plugin_description = gettext("Blocks access from an IP address which has had multiple failed attempts to access the administration pages.");
 $plugin_author = "Stephen Billard (sbillard)";
-$plugin_version = '1.4.1';
-$plugin_disable = (version_compare(PHP_VERSION, '5.0.0') != 1) ? gettext('PHP version 5 or greater is required.') : false;
+$plugin_version = '1.4.2';
 
-if ($plugin_disable) {
-	setOption('zp_plugin_failed_access_blocker',0);
-} else {
-	$option_interface = 'failed_access_blocker';
-	zp_register_filter('admin_allow_access', 'failed_access_blocker_adminGate',2);
-	zp_register_filter('admin_login_attempt', 'failed_access_blocker_login',2);
-	zp_register_filter('federated_login_attempt', 'failed_access_blocker_login',2);
-	zp_register_filter('guest_login_attempt', 'failed_access_blocker_login',2);
-}
+$option_interface = 'failed_access_blocker';
+zp_register_filter('admin_allow_access', 'failed_access_blocker_adminGate',2);
+zp_register_filter('admin_login_attempt', 'failed_access_blocker_login',2);
+zp_register_filter('federated_login_attempt', 'failed_access_blocker_login',2);
+zp_register_filter('guest_login_attempt', 'failed_access_blocker_login',2);
 
 /**
  * Option handler class
@@ -86,9 +81,7 @@ function failed_access_blocker_adminGate($allow, $page) {
 	$sql = 'INSERT INTO '.prefix('plugin_storage').' (`type`, `aux`,`data`) VALUES ("failed_access", "'.time().'","'.getUserIP().'")';
 	query($sql);
 	//	check how many times this has happened recently
-	$sql = 'SELECT COUNT(*) FROM '.prefix('plugin_storage'). 'WHERE `type`="failed_access" AND `data`="'.getUserIP().'"';
-	$result = query($sql);
-	$count = db_result($result, 0);
+	$count = db_count('plugin_storage','WHERE `type`="failed_access" AND `data`="'.getUserIP().'"');
 	if ($count >= getOption('failed_access_blocker_attempt_threshold')) {
 		$block = getOption('failed_access_blocker_forbidden');
 		if ($block) {

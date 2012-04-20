@@ -6,7 +6,6 @@
  * @subpackage usermanagement
  */
 define ('OFFSET_PATH', 4);
-require_once(dirname(dirname(dirname(__FILE__))).'/admin-functions.php');
 require_once(dirname(dirname(dirname(__FILE__))).'/admin-globals.php');
 
 admin_securityChecks(NULL, currentRelativeURL(__FILE__));
@@ -149,11 +148,8 @@ echo '</head>'."\n";
 						$gallery = new Gallery();
 						$albumlist = array();
 						foreach ($gallery->getAlbums() as $folder) {
-							if (hasDynamicAlbumSuffix($folder)) {
-								$name = substr($folder, 0, -4); // Strip the .'.alb' suffix
-							} else {
-								$name = $folder;
-							}
+							$alb = new Album($gallery, $folder);
+							$name = $alb->getTitle();
 							$albumlist[$name] = $folder;
 						}
 						?>
@@ -263,7 +259,7 @@ echo '</head>'."\n";
 												</div>
 											</div>
 										<?php
-											printManagedObjects('albums', $albumlist, '', $groupid, $id, $rights, $kind);
+											printManagedObjects('albums', $albumlist, '', $groupid, $id, $rights, $kind, array());
 											if (getOption('zp_plugin_zenpage')) {
 												$pagelist = array();
 												$pages = $_zp_zenpage->getPages(false);
@@ -272,13 +268,13 @@ echo '</head>'."\n";
 														$pagelist[get_language_string($page['title'])] = $page['titlelink'];
 													}
 												}
-												printManagedObjects('pages',$pagelist, '', $groupid, $id, $rights, $kind);
+												printManagedObjects('pages',$pagelist, '', $groupid, $id, $rights, $kind, NULL);
 												$newslist = array();
 												$categories = $_zp_zenpage->getAllCategories(false);
 												foreach ($categories as $category) {
 													$newslist[get_language_string($category['title'])] = $category['titlelink'];
 												}
-												printManagedObjects('news',$newslist, '', $groupid, $id, $rights, $kind);
+												printManagedObjects('news',$newslist, '', $groupid, $id, $rights, $kind, NULL);
 											}
 											?>
 										</td>
@@ -308,7 +304,7 @@ echo '</head>'."\n";
 							</p>
 							<input type="hidden" name="totalgroups" value="<?php echo $id; ?>" />
 						</form>
-						<script language="javascript" type="text/javascript">
+						<script type="text/javascript">
 							//<!-- <![CDATA[
 							function checkSubmit() {
 								newgroupid = <?php echo ($id-1); ?>;

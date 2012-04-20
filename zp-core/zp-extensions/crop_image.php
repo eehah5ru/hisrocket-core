@@ -7,24 +7,22 @@
  * @package plugins
  */
 
-/*
-$plugin_is_filter = 5|ADMIN_PLUGIN;
-*/
-$plugin_description = gettext("An image crop tool. Places an image crop button in the image utilities box of the images tab.");
-$plugin_author = "Stephen Billard (sbillard)";
-$plugin_version = '1.4.1';
 
 if (isset($_REQUEST['performcrop'])) {
 	if (!defined('OFFSET_PATH')) define('OFFSET_PATH', 3);
-	require_once(dirname(dirname(__FILE__)).'/admin-functions.php');
 	require_once(dirname(dirname(__FILE__)).'/admin-globals.php');
 	require_once(dirname(dirname(__FILE__)).'/functions-image.php');
 	admin_securityChecks(ALBUM_RIGHTS, $return = currentRelativeURL(__FILE__));
 } else {
 	zp_register_filter('admin_toolbox_image', 'toolbox_crop_image');
 	zp_register_filter('edit_image_utilities', 'edit_crop_image', 1); // we want this one to come right after the crop thumbnail button
+	$plugin_is_filter = 5|ADMIN_PLUGIN;
+	$plugin_description = gettext("An image crop tool. Places an image crop button in the image utilities box of the images tab.");
+	$plugin_author = "Stephen Billard (sbillard)";
+	$plugin_version = '1.4.2';
 	return;
 }
+
 
 function toolbox_crop_image($albumname, $imagename) {
 	$album = new Album(New Gallery(), $albumname);
@@ -199,7 +197,7 @@ printAdminHeader('edit',gettext('crop image'));
 <script src="<?php echo WEBPATH.'/'.ZENFOLDER ?>/js/jquery.Jcrop.js" type="text/javascript"></script>
 <link rel="stylesheet" href="<?php echo WEBPATH.'/'.ZENFOLDER ?>/js/jquery.Jcrop.css" type="text/css" />
 <link rel="stylesheet" href="<?php echo WEBPATH.'/'.ZENFOLDER.'/'.PLUGIN_FOLDER ?>/crop_image/crop_image.css" type="text/css" />
-<script language="javascript" type="text/javascript" >
+<script type="text/javascript" >
 	//<!-- <![CDATA[
 	var jcrop_api;
 	jQuery(window).load(function(){

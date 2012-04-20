@@ -7,19 +7,30 @@
  * @subpackage zenpage
  */
 define("OFFSET_PATH",4);
-require_once(dirname(dirname(dirname(__FILE__))).'/admin-functions.php');
 require_once(dirname(dirname(dirname(__FILE__))).'/admin-globals.php');
 require_once("zenpage-admin-functions.php");
 
 admin_securityChecks(ZENPAGE_NEWS_RIGHTS, currentRelativeURL(__FILE__));
 
 $reports = array();
+if (isset($_GET['bulkaction'])) {
+	$reports[] = zenpageBulkActionMessage(sanitize($_GET['bulkaction']));
+}
 if (isset($_GET['deleted'])) {
 	$reports[] = "<p class='messagebox fade-message'>".gettext("Article successfully deleted!")."</p>";
 }
-if(isset($_POST['processcheckeditems'])) {
+if(isset($_POST['checkallaction'])) {	// true if apply is pressed
 	XSRFdefender('checkeditems');
-	processZenpageBulkActions('News',$reports);
+	if ($action = processZenpageBulkActions('News')) {
+		$uri = $_server['REQUEST_URI'];
+		if (strpos($uri, '?')) {
+			$uri .= '&bulkaction='.$action;
+		} else {
+			$uri .= '?bulkaction='.$action;
+		}
+		header('Location: ' .$uri);
+		exit();
+	}
 }
 if(isset($_GET['delete'])) {
 	XSRFdefender('delete');
@@ -84,22 +95,28 @@ printLogoAndLinks();
 		<div id="tab_articles" class="tabbox">
 			<?php
 			zp_apply_filter('admin_note','news', $subtab);
-			foreach ($reports as $report) {
-				echo $report;
+			if ($reports) {
+				$show = array();
+				preg_match_all('/<p class=[\'"](.*?)[\'"]>(.*?)<\/p>/', implode('', $reports),$matches);
+				foreach ($matches[1] as $key=>$report) {
+					$show[$report][] = $matches[2][$key];
+				}
+				foreach ($show as $type=>$list) {
+					echo '<p class="'.$type.'">'.implode('<br />', $list).'</p>';
+				}
 			}
 			?>
 			<h1><?php echo gettext('Articles'); ?>
 			<?php
 			if (isset($_GET['category'])) {
-				echo "<em>".$_GET['category'].'</em>';
+				echo "<em>".sanitize($_GET['category']).'</em>';
 			}
 			if (isset($_GET['date'])) {
 				echo '<em><small> ('.$_GET['date'].')</small></em>';
-				// require for getNewsArticles() so the date dropdown is working
+				// require for getArticles() so the date dropdown is working
 				set_context(ZP_ZENPAGE_NEWS_DATE);
 				$_zp_post_date = sanitize($_GET['date']);
 			}
-
 			if(isset($_GET['published'])) {
 				switch ($_GET['published']) {
 					case 'no':
@@ -114,15 +131,36 @@ printLogoAndLinks();
 			} else {
 				$published = 'all';
 			}
-
+			$sortorder = 'date';
+			$direction = 'desc';
+			if(isset($_GET['sortorder'])) {
+				switch ($_GET['sortorder']) {
+					case 'date-desc':
+						$sortorder = 'date';
+						$direction = 'desc';
+						break;
+					case 'date-asc':
+						$sortorder = 'date';
+						$direction = 'asc';
+						break;
+					case 'title-desc':
+						$sortorder = 'title';
+						$direction = 'desc';
+						break;
+					case 'title-asc':
+						$sortorder = 'title';
+						$direction = 'asc';
+						break;
+				}
+			}
 			if(isset($_GET['category'])) {
 				$catobj = new ZenpageCategory(sanitize($_GET['category']));
-				$resultU = $catobj->getArticles(0,'unpublished',false);
-				$result = $catobj->getArticles(0,$published,false);
+				$resultU = $catobj->getArticles(0,'unpublished',false,$sortorder,$direction);
+				$result = $catobj->getArticles(0,$published,false,$sortorder,$direction);
 			} else {
 				$catobj = NULL;
-				$resultU = $_zp_zenpage->getNewsArticles(0,'unpublished',false);
-				$result = $_zp_zenpage->getNewsArticles(0,$published,false);
+				$resultU = $_zp_zenpage->getArticles(0,'unpublished',false,$sortorder,$direction);
+				$result = $_zp_zenpage->getArticles(0,$published,false,$sortorder,$direction);
 			}
 			foreach ($result as $key=>$article) {
 				$article = new ZenpageNews($article['titlelink']);
@@ -146,24 +184,33 @@ printLogoAndLinks();
 					$articles_page = sanitize_numeric($_GET['articles_page']);
 				}
 			}
-			if ($articles_page) {
-				$offset = $_zp_zenpage->getOffset($articles_page);
+			// Basic setup for the global for the current admin page first
+			if(!isset($_GET['pagenr'])) {
+				$_zp_zenpage_currentadminnewspage = 1;
+			} else {
+				$_zp_zenpage_currentadminnewspage = sanitize_numeric($_GET['pagenr']);
+			}
+			if($articles_page) {
 				$total = ceil($articles / $articles_page);
+				//Needed check if we really have articles for page x or not otherwise we are just on page 1
+				if($total < $_zp_zenpage_currentadminnewspage) {
+					$_zp_zenpage_currentadminnewspage = 1;
+				}
+				$offset = $_zp_zenpage->getOffset($articles_page);
 				$result = array_slice($result, $offset, $articles_page);
 			}
 			?>
 			<span class="zenpagestats"><?php printNewsStatistic($articles, count($resultU));?></span></h1>
 				<div class="floatright">
-					<?php printCategoryDropdown(); printArticleDatesDropdown(); printUnpublishedDropdown(); ?>
+					<?php printCategoryDropdown(); printArticleDatesDropdown(); printUnpublishedDropdown(); printSortOrderDropdown(); printArticlesPerPageDropdown(); ?>
 						<?php //echo "optionpath: ".getNewsAdminOptionPath(true,true,true); // debugging only; ?>
 						<span class="buttons">
-						<a href="admin-edit.php?newsarticle&amp;add&amp;add&amp;XSRFToken=<?php echo getXSRFToken('add')?>" title="<?php echo gettext('New Article'); ?>"><img src="images/add.png" alt="" /> <strong><?php echo gettext("New Article"); ?></strong></a>
+						<a href="admin-edit.php?newsarticle&amp;add&amp;XSRFToken=<?php echo getXSRFToken('add')?>" title="<?php echo gettext('New Article'); ?>"><img src="images/add.png" alt="" /> <strong><?php echo gettext("New Article"); ?></strong></a>
 						</span>
 						<br style="clear: both" /><br />
 				</div>
-				<form action="admin-news-articles.php" method="post" name="checkeditems" onsubmit="return confirmAction();">
+				<form action="admin-news-articles.php?pagenr=<?php echo $_zp_zenpage_currentadminnewspage.getNewsAdminOptionPath(true,true,true,true,true);?>" method="post" name="checkeditems" onsubmit="return confirmAction();">
 					<?php XSRFToken('checkeditems'); ?>
-				<input name="processcheckeditems" type="hidden" value="apply" />
 				<div class="buttons">
 					<button type="submit" title="<?php echo gettext('Apply'); ?>"><img src="../../images/pass.png" alt="" /><strong><?php echo gettext('Apply'); ?></strong>
 					</button>
@@ -184,6 +231,8 @@ printLogoAndLinks();
 														gettext('Disable comments') => 'commentsoff',
 														gettext('Enable comments') => 'commentson',
 														gettext('Reset hitcounter') => 'resethitcounter',
+														gettext('Add categories') => 'addcats',
+														gettext('Clear categories') => 'clearcats'
 														);
 						printBulkActions($checkarray);
 						?>
@@ -206,7 +255,7 @@ printLogoAndLinks();
 							<td>
 							 <?php
 							 if(checkIfLockedNews($article)) {
-								 echo '<a href="admin-edit.php?newsarticle&amp;titlelink='.urlencode($article->getTitlelink()).'&amp;pagenr='.$_zp_zenpage->getCurrentAdminNewsPage().'">'; checkForEmptyTitle($article->getTitle(),"news"); echo '</a>'.checkHitcounterDisplay($article->getHitcounter());
+								 echo '<a href="admin-edit.php?newsarticle&amp;titlelink='.urlencode($article->getTitlelink()).'&amp;pagenr='.$_zp_zenpage_currentadminnewspage.getNewsAdminOptionPath(true,true,true,true,true).'">'; checkForEmptyTitle($article->getTitle(),"news"); echo '</a>'.checkHitcounterDisplay($article->getHitcounter());
 							 } else {
 								 echo checkForEmptyTitle($article->getTitle(),"news").'</a>'.checkHitcounterDisplay($article->getHitcounter());
 							 }
@@ -227,7 +276,7 @@ printLogoAndLinks();
 							</td>
 							<td class="icons">
 							<?php
-								if($article->inProtectedCategory() &&	(GALLERY_SECURITY != 'private')) {
+								if($article->inProtectedCategory()) {
 									echo '<img src="../../images/lock.png" style="border: 0px;" alt="'.gettext('Password protected').'" title="'.gettext('Password protected').'" />';
 								}
 								?>
@@ -244,13 +293,13 @@ printLogoAndLinks();
 								<?php
 								if ($article->getCommentsAllowed()) {
 									?>
-									<a href="?commentson=0&amp;titlelink=<?php echo html_encode($article->getTitlelink()); ?>&amp;XSRFToken=<?php echo getXSRFToken('update')?>" title="<?php echo gettext('Disable comments'); ?>">
+									<a href="?commentson=0&amp;titlelink=<?php echo html_encode($article->getTitlelink()); ?>&amp;pagenr=<?php echo $_zp_zenpage_currentadminnewspage.getNewsAdminOptionPath(true,true,true,true,true); ?>&amp;XSRFToken=<?php echo getXSRFToken('update')?>" title="<?php echo gettext('Disable comments'); ?>">
 										<img src="../../images/comments-on.png" alt="" title="<?php echo gettext("Comments on"); ?>" style="border: 0px;"/>
 									</a>
 									<?php
 								} else {
 									?>
-									<a href="?commentson=1&amp;titlelink=<?php echo html_encode($article->getTitlelink()); ?>&amp;XSRFToken=<?php echo getXSRFToken('update')?>" title="<?php echo gettext('Enable comments'); ?>">
+									<a href="?commentson=1&amp;titlelink=<?php echo html_encode($article->getTitlelink()); ?>&amp;pagenr=<?php echo $_zp_zenpage_currentadminnewspage.getNewsAdminOptionPath(true,true,true,true,true); ?>&amp;XSRFToken=<?php echo getXSRFToken('update')?>" title="<?php echo gettext('Enable comments'); ?>">
 										<img src="../../images/comments-off.png" alt="" title="<?php echo gettext("Comments off"); ?>" style="border: 0px;"/>
 									</a>
 									<?php
@@ -269,7 +318,7 @@ printLogoAndLinks();
 							<?php } ?>
 
 							<td class="icons">
-								<a href="../../../index.php?p=news&amp;title=<?php echo $article->getTitlelink();?>" title="<?php echo gettext('View article'); ?>">
+								<a href="../../../index.php?p=news&amp;title=<?php echo $article->getTitlelink();?>&amp;pagenr=<?php echo $_zp_zenpage_currentadminnewspage.getNewsAdminOptionPath(true,true,true,true,true); ?>" title="<?php echo gettext('View article'); ?>">
 								<img src="images/view.png" alt="" title="<?php echo gettext('View article'); ?>" />
 								</a>
 							</td>
@@ -278,11 +327,11 @@ printLogoAndLinks();
 							if(checkIfLockedNews($article)) {
 								?>
 								<td class="icons">
-								<a href="?hitcounter=1&amp;titlelink=<?php echo html_encode($article->getTitlelink());?>&amp;XSRFToken=<?php echo getXSRFToken('hitcounter')?>" title="<?php echo gettext('Reset hitcounter'); ?>">
+								<a href="?hitcounter=1&amp;titlelink=<?php echo html_encode($article->getTitlelink());?>&amp;pagenr=<?php echo $_zp_zenpage_currentadminnewspage.getNewsAdminOptionPath(true,true,true,true,true); ?>&amp;XSRFToken=<?php echo getXSRFToken('hitcounter')?>" title="<?php echo gettext('Reset hitcounter'); ?>">
 								<img src="../../images/reset.png" alt="" title="<?php echo gettext('Reset hitcounter'); ?>" /></a>
 							</td>
 							<td class="icons">
-								<a href="javascript:confirmDelete('admin-news-articles.php?delete=<?php echo $article->getTitlelink(); ?>&amp;XSRFToken=<?php echo getXSRFToken('delete')?>','<?php echo js_encode(gettext('Are you sure you want to delete this article? THIS CANNOT BE UNDONE!')); ?>')" title="<?php echo gettext('Delete article'); ?>">
+								<a href="javascript:confirmDelete('admin-news-articles.php?delete=<?php echo $article->getTitlelink(); ?>&amp;pagenr=<?php echo $_zp_zenpage_currentadminnewspage.getNewsAdminOptionPath(true,true,true,true,true); ?>&amp;XSRFToken=<?php echo getXSRFToken('delete')?>','<?php echo js_encode(gettext('Are you sure you want to delete this article? THIS CANNOT BE UNDONE!')); ?>')" title="<?php echo gettext('Delete article'); ?>">
 								<img src="../../images/fail.png" alt="" title="<?php echo gettext('Delete article'); ?>" /></a>
 							</td>
 							<td class="icons">

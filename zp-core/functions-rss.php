@@ -5,6 +5,30 @@
  */
 
 /**
+ * Returns the rss channel main title part (gallery and/or website title)
+ *
+ * @return string
+ */
+function getRSSChanneltitle() {
+	global $_zp_gallery;
+	$mode = getOption('feed_title');
+	$locale = getRSSLocale();
+	switch($mode) {
+		case 'gallery':
+			$channeltitle = strip_tags(get_language_string($_zp_gallery->get('gallery_title'), $locale));
+			break;
+		case 'website':
+			$channeltitle = strip_tags(get_language_string($_zp_gallery->get('website_title'), $locale));
+			break;
+		case 'both':
+			$channeltitle = strip_tags(get_language_string($_zp_gallery->get('website_title'), $locale).' - '.get_language_string($_zp_gallery->get('gallery_title'), $locale));
+		break;
+	}
+	return $channeltitle;
+}
+
+
+/**
  * Returns the host
  *
  * @return string
@@ -53,13 +77,13 @@ function getRSSAlbumTitle() {
 	if(isset($_GET['albumtitle'])) {
 		$albumname = ' - '.html_encode(sanitize(urldecode($_GET['albumtitle']))).' ('.gettext(' - latest images').')';
 	} elseif ($rssmode == "albums" && !isset($_GET['folder'])) {
-		$albumname = gettext('- latest albums');
+		$albumname = ' ('.gettext('latest albums').')';
 	} elseif ($rssmode == 'albums' && isset($_GET['folder'])) {
 		$folder = sanitize(urldecode($_GET['folder']));
 		$albobj = new Album($_zp_gallery,$folder);
-		$albumname = ' - '.html_encode(strip_tags($albobj->getTitle())).gettext(" (latest albums)");
+		$albumname = ' - '.html_encode(strip_tags($albobj->getTitle())).' ('.gettext('latest albums').')';
 	} else {
-		$albumname = gettext(' (latest images)');
+		$albumname = ' ('.gettext('latest images').')';
 	}
 	return $albumname;
 }
@@ -227,46 +251,6 @@ function getRSSNewsCatOptions($arrayfield) {
 									);
 		return $array[$arrayfield];
 	}
-}
-
-/**
- * Returns the mimetype for the standard gallery items
- *
- * @param string $ext The extension/suffix of the filename
- * @return string
- */
-function getMimeType($ext) {
-	switch($ext) {
-		case  ".flv":
-			$mimetype = "video/x-flv";
-			break;
-		case ".mp3":
-			$mimetype = "audio/mpeg";
-			break;
-		case ".mp4":
-			$mimetype = "video/mpeg";
-			break;
-		case ".3gp":
-			$mimetype = "video/3gpp";
-			break;
-		case ".mov":
-			$mimetype = "video/quicktime";
-			break;
-		case ".jpg":
-		case ".jpeg":
-			$mimetype = "image/jpeg";
-			break;
-		case ".gif":
-			$mimetype = "image/gif";
-			break;
-		case ".png":
-			$mimetype = "image/png";
-			break;
-		default:
-			$mimetype = "image/jpeg";
-			break;
-	}
-	return $mimetype;
 }
 
 /**

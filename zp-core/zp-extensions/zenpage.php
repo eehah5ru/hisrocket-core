@@ -2,9 +2,10 @@
 /**
  * Zenphoto CMS plugin
  *
+ * @author Malte Müller (acrylian), Stephen Billard (sbillard)
  * @package plugins
  */
-$plugin_version = '1.4.1';
+$plugin_version = '1.4.2';
 $plugin_description = gettext("A CMS plugin that adds the capability to run an entire gallery focused website with zenphoto.")
 				."<p class='notebox'>". gettext("<strong>Note:</strong> This feature must be integrated into your theme. It is not supported by either the <em>default</em> and <em>stopdesign</em> themes.")."</p>";
 $plugin_author = "Malte Müller (acrylian), Stephen Billard (sbillard)";
@@ -24,7 +25,6 @@ class zenpagecms {
 		setOptionDefault('zenpage_read_more', getAllTranslations($str));
 		setOptionDefault('zenpage_rss_items', '10');
 		setOptionDefault('zenpage_rss_length', '100');
-		setOptionDefault('zenpage_admin_articles', '15');
 		setOptionDefault('zenpage_indexhitcounter', false);
 		setOptionDefault('zenpage_combinews', false);
 		setOptionDefault('zenpage_combinews_readmore', gettext('Visit gallery page'));
@@ -71,15 +71,13 @@ class zenpagecms {
 										'desc' => gettext("The number of news articles you want to appear in your site's News RSS feed.")),
 		gettext('RSS feed text length') => array('key' => 'zenpage_rss_length', 'type' => OPTION_TYPE_TEXTBOX,
 										'desc' => gettext("The text length of the Zenpage RSS feed items. No value for full length.")),
-		gettext('Articles per page (admin)') => array('key' => 'zenpage_admin_articles', 'type' => OPTION_TYPE_TEXTBOX,
-										'desc' => gettext("How many news articles you want to show per page on the news article admin page.")),
 		gettext('CombiNews') => array('key' => 'zenpage_combinews', 'type' => OPTION_TYPE_CHECKBOX,
 										'desc' => gettext("Set to enable the CombiNews feature to show news articles and latest gallery items together on the news section's overview page(s).")."<p class='notebox'>".gettext("<strong>Note:</strong> Images/albums and news articles are still separate, your Zenphoto gallery is not touched in any way! <strong>IMPORTANT: This feature requires MySQL 4.1 or later.</strong>")."</p>"),
 		gettext('CombiNews: Gallery page link') => array('key' => 'zenpage_combinews_readmore', 'type' => OPTION_TYPE_TEXTBOX, 'multilingual' => 1,
 										'desc' => gettext("The text for the 'read more'/'view more' link to the gallery page for images/movies/audio.")),
 		gettext('CombiNews: Mode') => array('key' => 'zenpage_combinews_mode', 'type' => OPTION_TYPE_SELECTOR,
-										'selections' => array(gettext('latest images: sized image') => "latestimages-sizedimage", gettext('latest images: thumbnail') => "latestimages-thumbnail", gettext('latest albums: sized image') => "latestalbums-sizedimage", gettext('latest albums: thumbnail') => "latestalbums-thumbnail",gettext('latest albums: thumbnail-customcrop') => "latestalbums-thumbnail-customcrop",gettext('latest images: thumbnail-customcrop') => "latestimages-thumbnail-customcrop", gettext('latest images by album: thumbnail') => "latestimagesbyalbum-thumbnail",gettext('latest images by album: thumbnail-customcrop') => "latestimagesbyalbum-thumbnail-customcrop", gettext('latest images by album: sized image') => "latestimagesbyalbum-sizedimage"),
-										'desc' => gettext("What you want to show within the CombiNews section.<br /><ul><li>Latest images: Entries for all images ever added</li><li>Latest albums: Entries for all albums ever created</li><li>Latest images by album: Entries for all images but grouped by images that have been added within a day to each album (Scheme: 'x new images in album y on date z')</li></ul>")),
+										'selections' => array(gettext('latest images: sized image') => "latestimages-sizedimage", gettext('latest images: sized image maxspace') => "latestimages-sizedimage-maxspace", gettext('latest images: thumbnail') => "latestimages-thumbnail", gettext('latest albums: sized image') => "latestalbums-sizedimage", gettext('latest albums: sized image maxspace') => "latestalbums-sizedimage-maxspace",gettext('latest albums: thumbnail') => "latestalbums-thumbnail",gettext('latest albums: thumbnail-customcrop') => "latestalbums-thumbnail-customcrop",gettext('latest images: thumbnail-customcrop') => "latestimages-thumbnail-customcrop", gettext('latest images by album: thumbnail') => "latestimagesbyalbum-thumbnail",gettext('latest images by album: thumbnail-customcrop') => "latestimagesbyalbum-thumbnail-customcrop", gettext('latest images by album: sized image') => "latestimagesbyalbum-sizedimage", gettext('latest images by album: sized image maxspace') => "latestimagesbyalbum-sizedimage-maxspace"),
+										'desc' => gettext("What you want to show within the CombiNews section.<br /><ul><li>Latest images: Entries for all images ever added</li><li>Latest albums: Entries for all albums ever created</li><li>Latest images by album: Entries for all images but grouped by images that have been added within a day to each album (Scheme: 'x new images in album y on date z')</li></ul> <em>maxspace</em> means that an uncropped image fitting max. width x max. height as set on the thumbnail width and height options is used (not for multimedia items!).")),
 		gettext('CombiNews: Sized image size') => array('key' => 'zenpage_combinews_imagesize', 'type' => OPTION_TYPE_TEXTBOX,
 										'desc' => gettext("The size of the sized image shown the CombiNews section <em>(only in latest images-sizedimage or latest albums-sizedimage mode)</em>.")),
 		gettext('CombiNews: Sort order') => array('key' => 'zenpage_combinews_sortorder', 'type' => OPTION_TYPE_SELECTOR,
@@ -93,9 +91,9 @@ class zenpagecms {
 		gettext('CombiNews: Thumbnail crop height') => array('key' => 'combinews-thumbnail-cropheight', 'type' => OPTION_TYPE_TEXTBOX,
 															'desc' => gettext("For <em>thumbnail custom crop</em> only. Leave empty if you don't want to use it.")),
 		gettext('CombiNews: Thumbnail width') => array('key' => 'combinews-thumbnail-width', 'type' => OPTION_TYPE_TEXTBOX,
-															'desc' => gettext("For <em>thumbnail custom crop</em> only. Leave empty if you don't want to use it.")),
+															'desc' => gettext("For <em>thumbnail custom crop</em> and <em>sized image maxspace</em> variants only. Leave empty if you don't want to use it. For <em>maxspace</em> this is the max width of the uncropped sized image.")),
 		gettext('CombiNews: Thumbnail height') => array('key' => 'combinews-thumbnail-height', 'type' => OPTION_TYPE_TEXTBOX,
-															'desc' => gettext("For <em>thumbnail custom crop</em> only. Leave empty if you don't want to use it.")),
+															'desc' => gettext("For <em>thumbnail custom crop</em> and <em>sized image maxspace</em> variants only. Leave empty if you don't want to use it. For <em>maxspace</em> this is the max height of the uncropped sized image.")),
 		gettext('CombiNews: Thumbnail crop x axis') => array('key' => 'combinews-thumbnail-cropx', 'type' => OPTION_TYPE_TEXTBOX,
 															'desc' => gettext("For <em>thumbnail custom crop</em> only. Leave empty if you don't want to use it.")),
 		gettext('CombiNews: Thumbnail crop y axis') => array('key' => 'combinews-thumbnail-cropy', 'type' => OPTION_TYPE_TEXTBOX,

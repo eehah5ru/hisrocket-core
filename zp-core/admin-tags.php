@@ -4,7 +4,6 @@
  * @package admin
  */
 define('OFFSET_PATH', 1);
-require_once(dirname(__FILE__).'/admin-functions.php');
 require_once(dirname(__FILE__).'/admin-globals.php');
 require_once(dirname(__FILE__).'/template-functions.php');
 
@@ -24,7 +23,7 @@ if (count($_POST) > 0) {
 		XSRFdefender('new_tags');
 		foreach ($_POST as $value) {
 			if (!empty($value)) {
-				$value = zp_html_decode(sanitize($value, 3));
+				$value = html_decode(sanitize($value, 3));
 				$result = query_single_row('SELECT `id` FROM '.prefix('tags').' WHERE `name`="'.db_quote($value).'"');
 				if (!is_array($result)) { // it really is a new tag
 					query('INSERT INTO '.prefix('tags').' (`name`) VALUES (' . db_quote($value) . ')');
@@ -37,7 +36,7 @@ if (count($_POST) > 0) {
 		$kill = array();
 		foreach ($_POST as $key => $value) {
 			$key = str_replace('tags_','',postIndexDecode($key));
-			$kill[] = $_zp_UTF8->strtolower($key);
+			$kill[] = mb_strtolower($key);
 		}
 		if (count($kill) > 0) {
 			$sql = "SELECT `id` FROM ".prefix('tags')." WHERE ";

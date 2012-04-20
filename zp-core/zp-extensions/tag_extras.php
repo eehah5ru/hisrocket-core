@@ -11,7 +11,7 @@
 
 $plugin_description = gettext("Provides functions to print a tag cloud of all image tags from an album optionally including the subalbums or the album tags including sub album tags or alternatively of all tags used by either Zenpage news articles or pages.");
 $plugin_author = "Malte Müller (acrylian)";
-$plugin_version = '1.4.1';
+$plugin_version = '1.4.2';
 
 /**
  * Prints a tag cloud list of the tags in one album and optionally its subalbums. Returns FALSE if no value.
@@ -123,13 +123,13 @@ function getAllTagsFromZenpage($mode='news') {
 	$tagWhere = "";
 	switch($mode) {
 		case 'news':
-			if(zp_loggedin(ZENPAGE_NEWS_RIGHTS)) {
+			if(zp_loggedin(ZENPAGE_NEWS_RIGHTS | VIEW_NEWS_RIGHTS)) {
 				$published = 'all';
 			} else {
 				$published = 'published';
 			}
 			$type = 'news';
-			$items = $_zp_zenpage->getNewsArticles('',$published);
+			$items = $_zp_zenpage->getArticles('',$published);
 			foreach($items as $item) {
 				$obj = new ZenpageNews($item['titlelink']);
 				if($obj->checkAccess($hint, $show)) {
@@ -138,7 +138,7 @@ function getAllTagsFromZenpage($mode='news') {
 			}
 			break;
 		case 'pages':
-			if(zp_loggedin(ZENPAGE_NEWS_RIGHTS)) {
+			if(zp_loggedin(ZENPAGE_NEWS_RIGHTS | VIEW_NEWS_RIGHTS)) {
 				$published = 'all';
 			} else {
 				$published = 'published';

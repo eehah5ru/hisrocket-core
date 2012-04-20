@@ -10,7 +10,7 @@ $plugin_is_filter = 5|ADMIN_PLUGIN;
 $plugin_description = gettext("Tiny MCE<span id='tinymceversion'></span> text editor for backend textareas").'<script type="text/javascript">if (tinymce) $("#tinymceversion").html(" v"+tinymce.majorVersion + "." + tinymce.minorVersion);</script>';
 
 $plugin_author = "Malte Müller (acrylian), Stephen Billard (sbillard)";
-$plugin_version = '1.4.1';
+$plugin_version = '1.4.2';
 $option_interface = 'tinymceOptions';
 
 zp_register_filter('texteditor_config','tinymceConfigJS');
@@ -64,14 +64,7 @@ class tinymceOptions {
 function tinymceConfigJS($editorconfig,$mode) {
 	if (empty($editorconfig)) {	// only if we get here first!
 		$locale = getLocaleForTinyMCEandAFM();
-		switch($mode) {
-			case 'zenphoto':
-				$editorconfig = getOption('tinymce_zenphoto');
-				break;
-			case 'zenpage';
-			$editorconfig = getOption('tinymce_zenpage');
-			break;
-		}
+		$editorconfig = getOption('tinymce_'.$mode);
 		if (!empty($editorconfig)) {
 			$editorconfig = getPlugin('/tiny_mce/config/'.$editorconfig);
 			require_once($editorconfig);

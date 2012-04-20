@@ -63,8 +63,8 @@
 
 class TextObject extends _Image {
 
-	var $watermark = NULL;
-	var $watermarkDefault = NULL;
+	protected $watermark = NULL;
+	protected $watermarkDefault = NULL;
 
 	/**
 	 * creates a textobject (image standin)
@@ -73,7 +73,7 @@ class TextObject extends _Image {
 	 * @param string $filename the filename of the text file
 	 * @return TextObject
 	 */
-	function TextObject($album, $filename) {
+	function __construct($album, $filename) {
 
 		$this->watermark = getOption('TextObject_watermark');
 		$this->watermarkDefault = getOption('textobject_watermark_default_images');
@@ -103,7 +103,7 @@ class TextObject extends _Image {
 			return;
 		}
 		$this->updateDimensions();
-		if (parent::PersistentObject('images', array('filename'=>$filename, 'albumid'=>$this->album->id), 'filename', false, false)) {
+		if (parent::PersistentObject('images', array('filename'=>$filename, 'albumid'=>$this->album->id), 'filename')) {
 			$title = $this->getDefaultTitle();
 			$this->set('title', $title);
 			$this->set('mtime', $ts = filectime($this->localpath));
@@ -245,7 +245,7 @@ class TextObject extends _Image {
 	 */
 	function getSizedImage($size) {
 		$width = $this->getWidth();
-		$height = $this->getHeight;
+		$height = $this->getHeight();
 		if ($width > $height) {	//portrait
 			$height = $height * $size/$width;
 		} else {
