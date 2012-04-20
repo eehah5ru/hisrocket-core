@@ -7,7 +7,10 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
   
-  RewriteBase /zenphoto
+  RewriteLog "/tmp/rewrite.log"
+  RewriteLogLevel 3  
+
+  RewriteBase /hisrocket-core
   
   RewriteRule	^admin/?$                       zp-core/admin.php [R,L]
   
