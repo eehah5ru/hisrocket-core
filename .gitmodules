@@ -1,0 +1,6 @@
+[submodule "themes/hisrocket-linear"]
+	path = themes/hisrocket-linear
+	url = /Users/git/hisrocket-theme.git
+[submodule "themes/hisrocket-single-image"]
+	path = themes/hisrocket-single-image
+	url = /Users/git/hisrocket-theme.git
