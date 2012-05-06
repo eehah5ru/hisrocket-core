@@ -1087,4 +1087,255 @@ function printCustomMenu($menuset='default', $option='list',$css_id='',$css_clas
 		echo "</ul>\n";
 	}
 }
+
+
+/**
+ * Prints a context sensitive menu of all pages as a unordered html list
+ *
+ * @param string $menuset the menu tree to output
+ * @param string $option The mode for the menu:
+ * 												"list" context sensitive toplevel plus sublevel pages,
+ * 												"list-top" only top level pages,
+ * 												"omit-top" only sub level pages
+ * 												"list-sub" lists only the current pages direct offspring
+ * @param string $css_id CSS id of the top level list
+ * @param string $css_class_topactive class of the active item in the top level list
+ * @param string $css_class CSS class of the sub level list(s)
+ * @param string $css_class_active CSS class of the sub level list(s)
+ * @param string $indexname insert the name (default "Gallery Index") how you want to call the link to the gallery index, insert "" (default) if you don't use it, it is not printed then.
+ * @param int $showsubs Set to depth of sublevels that should be shown always. 0 by default. To show all, set to a true! Only valid if option=="list".
+ * @param bool $counter TRUE (FALSE default) if you want the count of articles for Zenpage news categories or images/subalbums for albums.
+
+ * @return string
+ */
+function printHisRocketCustomMenu(
+	$menuset='default', 
+	$option='list',
+	$css_id='',
+	$css_class_topactive='',
+	$css_class='',
+	$css_class_active='',
+	$showsubs=true,
+	$counter=false) {
+
+	global $_zp_zenpage;
+	global $_zp_gallery_page;
+	global $_zp_current_zenpage_page, $_zp_current_category;
+	global $_zp_current_category;	
+	
+	// ???
+	// WTF
+	$itemcounter = '';
+	
+	// Set css id option
+	if ($css_id != "") { 
+		$css_id = " id='".$css_id."'"; 
+	}
+	
+	// Show submenus
+	if ($showsubs === true) {
+		$showsubs = 9999999999;
+	}
+
+	// ???
+	// WTF?
+	$sortorder = getCurrentMenuItem($menuset);
+	
+	// All menu items?
+	$items = getMenuItems($menuset, getMenuVisibility());
+
+	// Exit if there are no items
+	if (count($items) == 0) {
+		return; // nothing to do
+	}
+
+	// some piece of code related to menu order
+	if (empty($sortorder)) {
+		$currentitem_parentid = NULL;
+	} else {
+		$currentitem_parentid = $items[$sortorder]['parentid'];
+	}
+	
+	
+	if($startlist = !($option == 'omit-top'	|| $option == 'list-sub')) {
+		echo "<ul$css_id>";
+	}
+	
+	
+	if (strlen($sortorder)==0) {
+		$pageid = NULL;
+	} else {
+		$pageid = $items[$sortorder]['id'];
+	}
+	
+	$baseindent = max(1,count(explode("-", $sortorder)));
+	$indent = 1;
+	$open = array($indent=>0);
+	$parents = array(NULL);
+	$order = explode('-', $sortorder);
+	$mylevel = count($order);
+	$myparentsort = array_shift($order);
+
+	for ($c=0; $c<=$mylevel; $c++) {
+		$parents[$c] = NULL;
+	}
+	// render menu
+	foreach ($items as $item) {
+		// get menu item title and url
+		$itemarray = getItemTitleAndURL($item);
+		$itemURL = $itemarray['url'];
+		$itemtitle = $itemarray['title'];
+		
+		// get level of item (from string like 000-001-002)
+		$level = max(1,count(explode('-', $item['sort_order'])));
+
+//
+// FIXME: Now we use true instead of $process.
+//
+/*		
+		$process = (($level <= $showsubs && $option == "list") // user wants all the pages whose level is <= to the parameter
+								|| ($option == 'list' || $option == 'list-top') && $level==1 // show the top level
+								|| (($option == 'list' || ($option == 'omit-top' && $level>1))
+										&& (($item['id'] == $pageid) // current page
+											|| ($item['parentid'] == $pageid) // offspring of current page
+											|| ($level < $mylevel && $level > 1 && strpos($item['sort_order'], $myparentsort) === 0)) // direct ancestor
+											|| (($level == $mylevel) && ($currentitem_parentid == $item['parentid']))	// sibling
+											)
+								|| ($option == 'list-sub'
+										&& ($item['parentid']==$pageid) // offspring of the current page
+									 )
+								);
+*/		
+		
+// FIXME: Now we use true instead of $process
+//		if ($process) {
+		if (true) {
+			if ($level > $indent) {
+				echo "\n".str_pad("\t",$indent,"\t")."<ul class=\"$css_class menu_{$item['type']}\">\n";
+				$indent++;
+				$parents[$indent] = NULL;
+				$open[$indent] = 0;
+			} else if ($level < $indent) {
+				$parents[$indent] = NULL;
+				while ($indent > $level) {
+					if ($open[$indent]) {
+						$open[$indent]--;
+						echo "</li>\n";
+					}
+					$indent--;
+					echo str_pad("\t",$indent,"\t")."</ul>\n";
+				}
+			} else { // level == indent, have not changed
+				if ($open[$indent]) { // level = indent
+					echo str_pad("\t",$indent,"\t")."</li>\n";
+					$open[$indent]--;
+				} else {
+					echo "\n";
+				}
+			}
+
+			if ($open[$indent]) { // close an open LI if it exists
+				echo "</li>\n";
+				$open[$indent]--;
+			}
+
+			echo str_pad("\t",$indent-1,"\t");
+			$open[$indent] += $item['include_li'];
+			$parents[$indent] = $item['id'];
+			if($counter) {
+				switch($item['type']) {
+					case'album':
+						$albumobj = new Album($_zp_gallery,$item['link']);
+						$numimages = $albumobj->getNumImages();
+						$numsubalbums = $albumobj->getNumAlbums();
+						$itemcounter = ' <span style="white-space:nowrap;"><small>(';
+						if ($numsubalbums != 0) {
+							$itemcounter .= sprintf(ngettext('%u album', '%u albums',$numsubalbums),$numsubalbums);
+						}
+						if($numimages != 0) {
+							if ($numsubalbums != 0) {
+								$itemcounter .= ' ';
+							}
+							$itemcounter .= sprintf(ngettext('%u image', '%u images',$numimages),$numimages);
+						}
+						$itemcounter .= ')</small></span>';
+
+						break;
+					case'zenpagecategory':
+						if((zp_loggedin(ZENPAGE_NEWS_RIGHTS | VIEW_NEWS_RIGHTS))) {
+							$published = "all";
+						} else {
+							$published = "published";
+						}
+						$catobj = new ZenpageCategory($item['link']);
+						$catcount = count($catobj->getArticles(0,$published));
+						$itemcounter = "<small> (".$catcount.")</small>";
+						break;
+				}
+			}
+			if ($item['id'] == $pageid && !is_null($pageid)) {
+				if($level == 1) { // top level
+					$class = $css_class_topactive;
+				} else {
+					$class = $css_class_active;
+				}
+				echo '<li class="menu_'.trim($item['type'].' '.$class).'">'.$itemtitle.$itemcounter;
+			} else {
+				if (strpos($sortorder,$item['sort_order'])===0) {	// we are in the heritage chain
+					$class = ' '.$css_class_active.'-'.($mylevel-$level);
+				} else {
+					$class = '';
+				}
+				if ($item['include_li']) {
+					echo '<li class="menu_'.$item['type'].$class.'">';
+				}
+				if ($item['span_id'] || $item['span_class']) {
+					echo '<span';
+					if ($item['span_id']) echo ' id="'.$item['span_id'].'"';
+					if ($item['span_class']) echo ' class="'.$item['span_class'].'"';
+					echo '>';
+				}
+				switch ($item['type']) {
+					case 'html':
+						echo $item['link'];
+						break;
+					case 'menufunction':
+						eval($itemURL);
+						break;
+					case 'menulabel':
+						echo $itemtitle;
+						break;
+					default:
+						if (empty($itemURL)) {
+							$itemURL = FULLWEBPATH;
+						}
+						echo '<a href="'.$itemURL.'" title="'.strip_tags($itemtitle).'">'.$itemtitle.'</a>'.$itemcounter;
+						break;
+				}
+				if ($item['span_id'] || $item['span_class']) {
+					echo '</span>';
+				}
+			}
+
+		}
+	}
+	// cleanup any hanging list elements
+	while ($indent > 1) {
+		if ($open[$indent]) {
+			echo "</li>\n";
+			$open[$indent]--;
+		}
+		$indent--;
+		echo str_pad("\t",$indent,"\t")."</ul>";
+	}
+	if ($open[$indent]) {
+		echo "</li>\n";
+		$open[$indent]--;
+	} else {
+		echo "\n";
+	}
+	if ($startlist) {
+		echo "</ul>\n";
+	}
+}
 ?>
