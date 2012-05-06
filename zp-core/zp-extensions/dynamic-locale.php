@@ -27,6 +27,7 @@ $option_interface = 'dynamic_locale_options';
 zp_register_filter('theme_head', 'dynamic_localeJS');
 define('SEO_LOCALES',function_exists('filterLocale_load_request'));
 
+
 /**
  * prints a form for selecting a locale
  * The POST handling is by getUserLocale() called in functions.php
@@ -59,22 +60,43 @@ function printLanguageSelector($flags=NULL) {
 			$_languages = generateLanguageList();
 
 			$currentValue = getOption('locale');
+			
+			$is_first_lang = true;
+			
 			foreach ($_languages as $text=>$lang) {
 				$t = explode("_", $lang);
 				$lang_abbrev = $t[0];
+				
+				$li_class = "";
+				
+				if ($lang == $currentValue) {
+					$li_class = $li_class . "currentLanguage ";
+				}
+				
+				if ($is_first_lang) {
+					$is_first_lang = false;
+					$li_class = $li_class . "first";
+				}
+				
 				?>
-				<li<?php if ($lang==$currentValue) echo ' class="currentLanguage"'; ?>>
+				<li class="<?php echo $li_class ?>">
 					<?php
 					if ($lang!=$currentValue) {
+						?>
+						<a href="<?php echo html_encode(str_replace(WEBPATH, WEBPATH.'/'.substr($lang,0,2), $_SERVER['REQUEST_URI'])); ?>" >
+						<?php
+/* Disable to force using SEO_LOCALES mechanism
 						if (SEO_LOCALES) {
 							?>
 							<a href="<?php echo html_encode(str_replace(WEBPATH, WEBPATH.'/'.substr($lang,0,2), $_SERVER['REQUEST_URI'])); ?>" >
 							<?php
 						} else {
 							?>
-							<a href="?locale=<?php echo $lang; ?>" >
+								<a href="?locale=<?php echo $lang; ?>" >
 							<?php
+														<a href="?locale=<?php echo $lang; ?>" >
 						}
+*/
 					}
 					$flag = getLanguageFlag($lang);
 					?>

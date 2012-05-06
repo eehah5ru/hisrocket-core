@@ -20,15 +20,22 @@
 	display: inline;
 	padding: 5px;
 }
+
+.flags .first {
+	padding-right: 0px;
+}
+
 .flags li a {
 	text-decoration:none;
 	text-align:center;
 /*	vertical-align:middle;		*/
 }
 
+/*
 .currentLanguage {
 	border-top: 1px solid #BAC9CF;
 	border-left: 1px solid #BAC9CF;
 	border-right: 1px solid #BAC9CF;
 	border-bottom: 1px solid #BAC9CF;
 }
+*/
