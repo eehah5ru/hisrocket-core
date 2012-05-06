@@ -21,7 +21,9 @@
 	padding: 5px;
 }
 .flags li a {
-	text-decoration:none
+	text-decoration:none;
+	text-align:center;
+/*	vertical-align:middle;		*/
 }
 
 .currentLanguage {
