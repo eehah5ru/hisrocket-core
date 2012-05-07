@@ -1192,7 +1192,7 @@ function printHisRocketCustomMenu(
 //
 // FIXME: Now we use true instead of $process.
 //
-
+/*
 		$process = (($level <= $showsubs && $option == "list") // user wants all the pages whose level is <= to the parameter
 								|| ($option == 'list' || $option == 'list-top') && $level==1 // show the top level
 								|| (($option == 'list' || ($option == 'omit-top' && $level>1))
@@ -1205,12 +1205,14 @@ function printHisRocketCustomMenu(
 										&& ($item['parentid']==$pageid) // offspring of the current page
 									 )
 								);
-
+*/
 		
 // FIXME: Now we use true instead of $process
+		// Do nothing if item is an image
+		$process = $item['type'] != 'image';
 
-//		if ($process) {
-		if (true) {
+		if ($process) {
+//		if (true) {
 			if ($level > $indent) {
 				echo "\n".str_pad("\t",$indent,"\t")."<ul class=\"$css_class menu_{$item['type']}\">\n";
 				$indent++;
