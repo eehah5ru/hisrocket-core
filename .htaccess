@@ -3,6 +3,11 @@
 #		First make a copy of this file as 'oldhtaccess' in the zp-core folder so setup can test for unmodified files
 #		Update the above and the define in setup.php
 
+php_flag register_globals off
+
+php_flag magic_quotes_gpc off
+
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
   

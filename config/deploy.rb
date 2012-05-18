@@ -27,10 +27,11 @@ task :after_update_code do
   #
   # Remove all setup files!!
   #
+=begin
   %w{zp-core/setup zp-core/setup.php}.each do |setup_file|
     run "rm -r #{release_path}/#{setup_file}"
   end
-  
+=end  
 =begin  
   %w{database.yml environment.rb}.each do |config|
     run "ln -nfs #{shared_path}/#{config} #{release_path}/config/#{config}"
