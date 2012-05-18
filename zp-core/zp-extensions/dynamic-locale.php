@@ -82,8 +82,14 @@ function printLanguageSelector($flags=NULL) {
 				<li class="<?php echo $li_class ?>">
 					<?php
 					if ($lang!=$currentValue) {
-						?>
-						<a href="<?php echo html_encode(str_replace(WEBPATH, WEBPATH.'/'.substr($lang,0,2), $_SERVER['REQUEST_URI'])); ?>" >
+						if (defined('EMPTY_WEBPATH')) {
+							$lang_url = html_encode('/'.substr($lang, 0, 2) . $_SERVER['REQUEST_URI']);
+						}
+						else {
+							$lang_url = html_encode(str_replace(WEBPATH, WEBPATH.'/'.substr($lang,0,2), $_SERVER['REQUEST_URI']));
+						}
+					?>
+						<a href="<?php echo $lang_url; ?>" >
 						<?php
 /* Disable to force using SEO_LOCALES mechanism
 						if (SEO_LOCALES) {
