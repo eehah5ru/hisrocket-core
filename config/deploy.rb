@@ -3,6 +3,7 @@ set :repository,  "git@github.com:eehah5ru/hisrocket-core.git"
 set :branch, "1.4.2.3"
 
 set :scm, :git
+set :git_enable_submodules, 1
 # Or: `accurev`, `bzr`, `cvs`, `darcs`, `git`, `mercurial`, `perforce`, `subversion` or `none`
 
 set :deploy_to, "/home/c/cl86444/hisrocket.org"
