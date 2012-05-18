@@ -9,8 +9,13 @@
 
 // force UTF-8 Ø
 require_once(dirname(__FILE__).'/global-definitions.php');
+
 if(!function_exists("gettext")) {
 	require_once(dirname(__FILE__).'/lib-gettext/gettext.inc');
+}
+
+if(!function_exists("ngettext")) {
+	require_once(dirname(__FILE__).'/lib-gettext/ngettext.inc');
 }
 
 global $_zp_conf_vars;

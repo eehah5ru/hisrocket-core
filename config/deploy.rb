@@ -1,5 +1,6 @@
 set :application, "hisrocket-core"
 set :repository,  "git@github.com:eehah5ru/hisrocket-core.git"
+set :branch, "1.4.2.3"
 
 set :scm, :git
 # Or: `accurev`, `bzr`, `cvs`, `darcs`, `git`, `mercurial`, `perforce`, `subversion` or `none`
@@ -19,16 +20,16 @@ ssh_options[:forward_agent] = true
 after "deploy", "deploy:cleanup"
 
 task :after_update_code do
-  %w{albums cache cache_html zp-data/zenphoto.cfg}.each do |share|
+  %w{albums cache cache_html zp-data uploaded}.each do |share|
     run "ln -s #{shared_path}/#{share} #{release_path}/#{share}"
   end
   
   #
   # Remove all setup files!!
   #
-#  %w{zp-core/setup zp-core/setup.php}.each do |setup_file|
-#    run "rm -r #{release_path}/#{setup_file}"
-#  end
+  %w{zp-core/setup zp-core/setup.php}.each do |setup_file|
+    run "rm -r #{release_path}/#{setup_file}"
+  end
   
 =begin  
   %w{database.yml environment.rb}.each do |config|
