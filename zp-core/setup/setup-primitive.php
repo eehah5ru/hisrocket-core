@@ -9,7 +9,7 @@
 
 
 require_once(dirname(dirname(__FILE__)).'/global-definitions.php');
-require_once(dirname(dirname(__FILE__)).'/lib-htmLawed.php');
+require_once(dirname(dirname(__FILE__)).'/lib-htmlawed.php');
 
 preg_match('|(.*)/'.ZENFOLDER.'/|',$_SERVER['SCRIPT_NAME'], $matches);
 if (empty($matches)) {
