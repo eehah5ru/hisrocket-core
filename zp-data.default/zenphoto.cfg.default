@@ -79,6 +79,10 @@ $conf['FILESYSTEM_CHARSET'] = 'UTF-8';
 // define('WEBPATH', '/zenphoto');
 // define('SERVERPATH', '/full/server/path/to/zenphoto');
 
+// Hack to enable SEO locales URLS when WEBPATH is empty
+// Uncomment to enable
+//define('EMPTY_WEBPATH', 'asdas');
+
 ////////////////////////////////////////////////////////////////////////////////
 if (!defined('CHMOD_VALUE')) { define('CHMOD_VALUE',$conf['CHMOD']); }
 /** Do not edit below this line. **/
