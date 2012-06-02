@@ -39,7 +39,7 @@ function printVersion() {
 function printZenJavascripts() {
 	global $_zp_current_album;
 	?>
-	<script type="text/javascript" src="<?php echo WEBPATH . "/" . ZENFOLDER; ?>/js/jquery.js"></script>
+	<!--script type="text/javascript" src="<?php echo WEBPATH . "/" . ZENFOLDER; ?>/js/jquery.js"></script-->
 	<script type="text/javascript" src="<?php echo WEBPATH . "/" . ZENFOLDER; ?>/js/zenphoto.js"></script>
 	<?php
 	if (zp_loggedin()) {

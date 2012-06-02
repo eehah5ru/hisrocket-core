@@ -1119,6 +1119,11 @@ function printAlbumEditForm($index, $album, $collapse_tags) {
 		<img src="images/view.png" alt="" />
 		<strong><?php echo gettext('View Album'); ?></strong>
 		</a>
+		
+		<a title="<?php echo gettext('Edit album canvas'); ?>" href="<?php echo WEBPATH . "/index.php?album=". pathurlencode($album->getFolder()) . "&editcanvas=true"; ?>">
+			<img src="images/view.png" alt="" />
+				<strong><?php echo gettext('Edit album canvas'); ?></strong>
+		</a>		
 		</div>
 	</span>
 <br clear="all" /><br />
