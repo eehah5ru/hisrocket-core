@@ -1,6 +1,7 @@
 $(window).load(function() {
 	$('div.an-image').draggable({
 		containment: "#canvas",
+		scrollSpeed: 40,
 		stop: function (event, ui) {
 			$.ajax({
 				url: $("input[name=callback_url]").val(),
