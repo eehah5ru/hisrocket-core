@@ -69,9 +69,9 @@ function hca_add_admin_js () {
 			<script type="text/javascript" src="<?php echo WEBPATH.'/'.ZENFOLDER.'/'.PLUGIN_FOLDER.'/'.$ME; ?>/jquery.edit_canvas.js"></script>
 			<style type="text/css">
 				#canvas { border: solid 1px; }
-				div#change-canvas-size-form label, div#change-canvas-size-form input { display:block; }				
-				div#change-canvas-size-form input.text { margin-bottom:12px; width:95%; padding: .4em; }
-				div#change-canvas-size-form	fieldset { padding:0; border:0; margin-top:25px; }
+				div.dialog-form label, div.dialog-form input { display:block; }				
+				div.dialog-form input.text { margin-bottom:12px; width:95%; padding: .4em; }
+				div.dialog-form	fieldset { padding:0; border:0; margin-top:25px; }
 				.ui-dialog .ui-state-error { padding: .3em; }
 				.validateTips { border: 1px solid transparent; padding: 0.3em; }				
 			</style>
@@ -87,7 +87,7 @@ function hca_add_admin_callback_urls () {
 		?>
 			<input type="hidden" name="callback_url" value="<?php echo $base_path; ?>/hca_admin_callbacks.php" />
 			
-			<div id="change-canvas-size-form" title="Change canvas size">
+			<div id="change-canvas-size-form" class="dialog-form" title="Change canvas size">
 				<p class="validateTips">All form fields are required.</p>
 
 				<form>
@@ -99,6 +99,23 @@ function hca_add_admin_callback_urls () {
 				</fieldset>
 				</form>
 			</div>
+			
+			<div id="change-image-params-form" class="dialog-form" title="Change image params">
+				<p class="validateTips">All form fields are required.</p>
+
+				<form>
+				<fieldset>
+					<label for="image-width">Width</label>
+					<input type="text" name="image-width" id="image-width" class="text ui-widget-content ui-corner-all" />
+					<label for="image-height">Height</label>
+					<input type="text" name="image-height" id="image-height" value="" class="text ui-widget-content ui-corner-all" />
+					<label for="image-position-top">Position Top</label>
+					<input type="text" name="image-position-top" id="image-position-top" value="" class="text ui-widget-content ui-corner-all" />
+					<label for="image-position-left">Position Left</label>
+					<input type="text" name="image-position-left" id="image-position-left" value="" class="text ui-widget-content ui-corner-all" />										
+				</fieldset>
+				</form>
+			</div>			
 			
 			<button id="change-canvas-size-button">Change canvas size</button>
 			

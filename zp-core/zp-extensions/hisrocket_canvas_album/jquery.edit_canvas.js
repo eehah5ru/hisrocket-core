@@ -1,4 +1,6 @@
 $(window).load(function() {
+
+	// Make images draggable	
 	$('div.an-image').draggable({
 		containment: "#canvas",
 		scrollSpeed: 40,
@@ -17,6 +19,8 @@ $(window).load(function() {
 		}
 	});
 	
+	
+// Make canvas resizable
 	$("#canvas").resizable({
 		stop: function (event, ui) {
 			$.ajax({
@@ -31,7 +35,9 @@ $(window).load(function() {
 			})
 		}		
 	});
-	
+
+
+// Make images resizable	
 	$('div.an-image').each(function(item) {
 		$(this).resizable({
 			// alsoResize: "#" + $(this).find('img').attr('id'),
@@ -59,14 +65,6 @@ $(window).load(function() {
 		});
 
 	});
-	// $('#canvas').droppable({
-	//         accept : 'div.an-image',
-	//         drop : function(event, ui) {
-	//                 // $(this).append(ui.draggable);
-	// 			alert("aaaa");
-	// 			
-	// 		}
-	// });
 });
 
 
@@ -80,6 +78,16 @@ $(function() {
 			height = $( "#height" ),
 			allFields = $( [] ).add( width ).add( height ),
 			tips = $( ".validateTips" );
+
+	// Vars for image params dialog			
+		var image_width = $( '#image-width'),
+			image_height = $( '#image-height' ),
+			image_position_top = $( '#image-position-top'),
+			image_position_left = $( '#image-position-left' ),
+			imageParamsAllFields = $([]).add(image_width).add(image_height).add(image_position_left).add(image_position_top);
+			
+		// Current image for dimensions dialog
+		var currentImage = null;			
 
 		function updateTips( t ) {
 			tips
@@ -111,6 +119,17 @@ $(function() {
 			}
 		}
 		
+		// Set Current image
+		function setCurrentImage (anImage) {
+			currentImage = anImage;
+		} 
+		
+		// Get Current image
+		function getCurrentImage () {
+			return currentImage;
+		}		
+		
+		// Change canvas params dialog
 		$( "#change-canvas-size-form" ).dialog({
 			autoOpen: false,
 			height: 300,
@@ -153,7 +172,99 @@ $(function() {
 				allFields.val( "" ).removeClass( "ui-state-error" );
 			}
 		});
+		
+		//
+		//
+		// Change image params dialog
+		//
+		//
+		$( "#change-image-params-form" ).dialog({
+			autoOpen: false,
+			height: 375,
+			width: 350,
+			modal: true,
+			buttons: {
+				"Update image params": function() {
+					var bValid = true;
+					imageParamsAllFields.removeClass( "ui-state-error" );
 
+					// bValid = bValid && checkLength( image_width, "width", 3, 16 );
+					// bValid = bValid && checkLength( image_height, "height", 3, 16 );
+					
+					if ( bValid ) {
+
+						$.ajax({
+							url: $("input[name=callback_url]").val(),
+							data: {
+								action: 'resize_image',
+								image_file_name : getCurrentImage().find('input').val(),
+								album_folder : $("input[name=album_folder]").val(),
+								width : image_width.val(),
+								height : image_height.val()
+							}
+						});
+						
+						$.ajax({
+							url: $("input[name=callback_url]").val(),
+							data: {
+								action: 'move_image',
+								image_file_name : getCurrentImage().find('input').val(),
+								album_folder : $("input[name=album_folder]").val(),
+								position_top : image_position_top.val(),
+								position_left :	image_position_left.val()
+							}
+						});						
+						
+						getCurrentImage().css({
+							'width': image_width.val(),
+							'height': image_height.val(),
+							'top' : image_position_top.val() + "px",
+							'left' : image_position_left.val() + "px",							
+														
+						});	
+
+						getCurrentImage().find('img').css({
+							'width': getCurrentImage().innerWidth(), 
+							'height': getCurrentImage().innerHeight(),
+							
+						});
+						
+
+						$( this ).dialog( "close" );
+					}
+				},
+				Cancel: function() {
+					$( this ).dialog( "close" );
+				}
+			},
+			close: function() {
+				allFields.val( "" ).removeClass( "ui-state-error" );
+			}
+		});		
+
+		// Show dimensions and position dialog by double clicking on the image
+		$('div.an-image').dblclick(function () {
+			setCurrentImage($(this));
+			image_width.val($(this).width());
+			image_height.val($(this).height());			
+			image_position_top.val($(this).position().top);
+			image_position_left.val($(this).position().left);			
+			$( "#change-image-params-form" ).dialog( "open" );
+		});
+		
+		$('#image-width').change(function () {
+			ratio = parseFloat(getCurrentImage().height()) / parseFloat(getCurrentImage().width());
+			
+			$('#image-height').val(Math.round($('#image-width').val() * ratio));
+		});
+		
+		
+		$('#image-height').change(function () {
+			ratio = parseFloat(getCurrentImage().width()) / parseFloat(getCurrentImage().height());
+			
+			$('#image-width').val(Math.round($('#image-height').val() * ratio));			
+		});
+			
 		$( "#change-canvas-size-button" )
 			.button()
 			.click(function() {
