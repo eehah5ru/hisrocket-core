@@ -1,3 +1,13 @@
+function updateTooltip (el) {
+	var t = "Width: " + el.width() + "px\n";
+	t += "Height: " + el.height() + "px\n";
+	t += "Top: " + el.position().top + "px\n";
+	t += "Left: " + el.position().left + "px";
+	
+	el.attr('title', t);
+} 
+
+
 $(window).load(function() {
 
 	// Make images draggable	
@@ -15,7 +25,11 @@ $(window).load(function() {
 					position_top : $(this).position().top,
 					position_left :	$(this).position().left
 				}
-			})
+			});
+			updateTooltip($(this));			
+		},
+		drag: function (event, ui) {
+			updateTooltip($(this));
 		}
 	});
 	
@@ -48,6 +62,8 @@ $(window).load(function() {
 				var parentwidth = $this.innerWidth();
 				var parentheight = $this.innerHeight();
 				$(this).find('img').css({'width':parentwidth, 'height':parentheight});
+				
+				updateTooltip($(this));
 			},
 			stop: function (event, ui) {
 				$.ajax({
@@ -60,7 +76,8 @@ $(window).load(function() {
 						width : $(this).width(),
 						height : $(this).height()
 					}
-				})
+				});
+				updateTooltip($(this));				
 			}			
 		});
 
@@ -229,7 +246,7 @@ $(function() {
 							
 						});
 						
-
+						updateTooltip(getCurrentImage());
 						$( this ).dialog( "close" );
 					}
 				},
@@ -251,6 +268,15 @@ $(function() {
 			image_position_left.val($(this).position().left);			
 			$( "#change-image-params-form" ).dialog( "open" );
 		});
+		
+		//
+		// Adding tooltips
+		//
+		// $('div.an-image').tooltip();
+		$('div.an-image').each(function(item) {		
+			updateTooltip($(this));
+		});
+	
 		
 		$('#image-width').change(function () {
 			ratio = parseFloat(getCurrentImage().height()) / parseFloat(getCurrentImage().width());
