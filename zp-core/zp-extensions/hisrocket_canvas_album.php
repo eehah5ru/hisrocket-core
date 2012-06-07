@@ -74,6 +74,20 @@ function hca_add_admin_js () {
 				div.dialog-form	fieldset { padding:0; border:0; margin-top:25px; }
 				.ui-dialog .ui-state-error { padding: .3em; }
 				.validateTips { border: 1px solid transparent; padding: 0.3em; }				
+
+				.spinner {
+				    position: fixed;
+				    top: 50%;
+				    left: 50%;
+				    margin-left: -50px; /* half width of the spinner gif */
+				    margin-top: -50px; /* half height of the spinner gif */
+				    text-align:center;
+				    z-index:1234;
+				    overflow: auto;
+				    width: 100px; /* width of the spinner gif */
+				    height: 102px; /*hight of the spinner gif +2px to fix IE8 issue */
+				}
+				
 			</style>
 		<?php
 	}
@@ -115,6 +129,10 @@ function hca_add_admin_callback_urls () {
 					<input type="text" name="image-position-left" id="image-position-left" value="" class="text ui-widget-content ui-corner-all" />										
 				</fieldset>
 				</form>
+			</div>	
+			
+			<div id="spinner" class="spinner" style="display:none;">
+			    <img id="img-spinner" src="<?php echo $base_path; ?>/loading.gif" alt="Loading"/>
 			</div>			
 			
 			<button id="change-canvas-size-button">Change canvas size</button>

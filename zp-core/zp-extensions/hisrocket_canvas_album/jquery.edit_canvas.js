@@ -259,6 +259,20 @@ $(function() {
 			}
 		});		
 
+
+		//
+		// Splashscreen handler
+		//
+		    $("#spinner").bind("ajaxSend", function() {
+		        $(this).show();
+		    }).bind("ajaxStop", function() {
+		        $(this).hide();
+		    }).bind("ajaxError", function() {
+		        $(this).hide();
+		    });
+
+			
+			
 		// Show dimensions and position dialog by double clicking on the image
 		$('div.an-image').dblclick(function () {
 			setCurrentImage($(this));
@@ -276,6 +290,7 @@ $(function() {
 		$('div.an-image').each(function(item) {		
 			updateTooltip($(this));
 		});
+		
 	
 		
 		$('#image-width').change(function () {
@@ -294,8 +309,8 @@ $(function() {
 		$( "#change-canvas-size-button" )
 			.button()
 			.click(function() {
-				$("#change-canvas-size-form label[for=width]").text('Width (current ' + $('#canvas').width() + 'px)');
-				$("#change-canvas-size-form label[for=height]").text('Height (current ' + $('#canvas').height() + 'px)');				
+				width.val($('#canvas').width());
+				height.val($('#canvas').height());
 				$( "#change-canvas-size-form" ).dialog( "open" );
 			});
 });
