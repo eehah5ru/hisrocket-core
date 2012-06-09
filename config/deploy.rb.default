@@ -17,6 +17,8 @@ set :via, "scp"
 set :use_sudo, false
 ssh_options[:forward_agent] = true
 
+set :keep_releases, 2
+
 after "deploy", "deploy:cleanup"
 
 task :after_update_code do
