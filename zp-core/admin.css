@@ -1597,8 +1597,8 @@ ul.pagelist li.current {
 .language_string_list {
 	border: 1px solid #ccc;
 	list-style: none;
-	height: 5.5em;
-	width: 26em;
+	height: auto;
+	width: 36em;
 	overflow: auto;
 	background-color: white;
 }
@@ -1614,7 +1614,7 @@ ul.pagelist li.current {
 .language_string_list_short {
 	border: 1px solid #ccc;
 	list-style: none;
-	height: 5.5em;
+	height: auto;
 	width: 18em;
 	overflow: auto;
 	background-color: white;
@@ -1645,8 +1645,8 @@ ul.pagelist li.current {
 .language_string_listbox {
 	border: 1px solid #ccc;
 	list-style: none;
-	height: 14em;
-	width: 26em;
+	height: auto;
+	width: 36em;
 	overflow: auto;
 	background-color: white;
 }

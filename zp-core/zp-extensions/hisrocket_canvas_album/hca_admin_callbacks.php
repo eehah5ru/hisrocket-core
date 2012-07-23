@@ -75,7 +75,7 @@ class HCAHandlers {
 	}
 	
 	private static function unknownAction () {
-		header("Status: 404 Action not found");
+		header("Action not found", true, 404);
 		exit();
 	}
 }
@@ -248,7 +248,7 @@ class HCAImage {
 
 class HCAUtils {
 	public static function handleException ($e) {
-		header("Status 505: Got error " . $e->getMessage());
+		header("Got error " . $e->getMessage(), true, 405);		
 		exit();
 	}
 }
@@ -288,8 +288,10 @@ class HCAParamUtils {
 		global $_GET;
 		$result = sanitize($_GET[$param_name]);
 		
-		if (empty($result)) {
-			header("Status: 505" . $param_name . "is empty");
+		if (strlen($result) == 0) {
+		// if (empty($result)) {
+			header($param_name . " is empty", true, 405);
+			// header("Status: 505 " . $param_name . " is empty");
 			exit();
 		}
 		
