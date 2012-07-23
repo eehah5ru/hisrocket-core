@@ -22,7 +22,7 @@ set :keep_releases, 2
 after "deploy", "deploy:cleanup"
 
 task :after_update_code do
-  %w{albums cache cache_html zp-data uploaded .htaccess files php.ini}.each do |share|
+  %w{albums cache cache_html zp-data uploaded .htaccess files php.ini robots.txt}.each do |share|
     run "ln -s #{shared_path}/#{share} #{release_path}/#{share}"
   end
   
