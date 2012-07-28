@@ -416,7 +416,7 @@ function getImageStatistic($number, $option, $albumfolder='',$collection=false) 
  * @param bool $fullimagelink 'false' (default) for the image page link , 'true' for the unprotected full image link (to use Colorbox for example)
  * @return string
  */
-function printImageStatistic($number, $option, $albumfolder='', $showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=NULL,$height=NULL,$crop=NULL,$collection=false,$fullimagelink=false) {
+function printImageStatistic($number, $option, $albumfolder='', $showtitle=false, $showdate=false, $showdesc=false, $desclength=40,$showstatistic='',$width=NULL,$height=NULL,$crop=NULL,$collection=false,$fullimagelink=false, $nolink=false) {
 	$images = getImageStatistic($number, $option, $albumfolder,$collection);
 	if (is_null($crop) && is_null($width) && is_null($height)) {
 		$crop = 2;
@@ -437,16 +437,30 @@ function printImageStatistic($number, $option, $albumfolder='', $showtitle=false
 		} else {
 			$imagelink = $image->getImageLink();
 		}
-		echo "<li><a href=\"" . html_encode($imagelink)."\" title=\"" . html_encode($image->getTitle()) . "\">\n";
+		echo "<li>";
+		if (!$nolink) {
+			echo "<a href=\"" . html_encode($imagelink)."\" title=\"" . html_encode($image->getTitle()) . "\">\n";	
+		}
 		switch ($crop) {
 			case 0:
-				echo "<img src=\"".html_encode($image->getCustomImage($width, NULL, NULL, NULL, NULL, NULL, NULL, TRUE))."\" alt=\"" . html_encode($image->getTitle()) . "\" /></a>\n";
+				echo "<img src=\"".html_encode($image->getCustomImage($width, NULL, NULL, NULL, NULL, NULL, NULL, TRUE))."\" alt=\"" . html_encode($image->getTitle()) . "\" />"; 
+				if (!$nolink) {
+					echo "</a>\n";
+				}
+
 				break;
 			case 1:
-				echo "<img src=\"".html_encode($image->getCustomImage(NULL, $width, $height, $width, $height, NULL, NULL, TRUE))."\" alt=\"" . html_encode($image->getTitle()) . "\" /></a>\n";
+				echo "<img src=\"".html_encode($image->getCustomImage(NULL, $width, $height, $width, $height, NULL, NULL, TRUE))."\" alt=\"" . html_encode($image->getTitle()) . "\" />";
+				if (!$nolink) {
+					echo "</a>\n";
+				}				
 				break;
 			case 2:
-				echo "<img src=\"".html_encode($image->getThumb())."\" alt=\"" . html_encode($image->getTitle()) . "\" /></a>\n<br />";
+				echo "<img src=\"".html_encode($image->getThumb())."\" alt=\"" . html_encode($image->getTitle()) . "\" />";
+				if (!$nolink) {
+					echo "</a>\n";
+				}
+				echo "<br />";
 				break;
 		}
 		if($showtitle) {
