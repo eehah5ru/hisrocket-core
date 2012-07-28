@@ -1368,6 +1368,7 @@ $alb = removeParentAlbumNames($album);
 					<?php
 					$current = $image->getWatermark();
 					?>
+
 					<tr>
 						<td align="left" valign="top" width="150"><?php echo gettext("Image watermark:"); ?> </td>
 						<td>
@@ -1387,6 +1388,19 @@ $alb = removeParentAlbumNames($album);
 							</span>
 						</td>
 					</tr>
+					
+					<tr>
+						<td align="left" valign="top" width="150"><?php echo gettext("Total value:"); ?> </td>
+						<td>
+							<input type="text" name="<?php echo $currentimage?>-total-value" value="<?php echo $image->get('total_value') ?>" />
+						</td>
+					</tr>					
+					<tr>
+						<td align="left" valign="top" width="150"><?php echo gettext("Total votes:"); ?> </td>
+						<td>
+							<input type="text" name="<?php echo $currentimage?>-total-votes" value="<?php echo $image->get('total_votes') ?>" />
+						</td>
+					</tr>					
 					<?php
 					$custom = zp_apply_filter('edit_image_custom_data', '', $image, $currentimage);
 					if (empty($custom)) {
