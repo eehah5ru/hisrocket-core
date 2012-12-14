@@ -185,7 +185,8 @@ class TextObject extends _Image {
 			case 'txt':
 			case 'htm':
 			case 'html':
-				return '<span style="display:block;width:'.$w.'px;height:'.$h.'px;" class="textobject">'.@file_get_contents($this->localpath).'</span>';
+				// return '<span style="display:block;width:'.$w.'px;height:'.$h.'px;" class="textobject">'.@file_get_contents($this->localpath).'</span>';
+				return @file_get_contents($this->localpath);				
 			default: // just in case we extend and are lazy...
 				return '<img src="'.$this->getThumb().'">';
 		}
