@@ -14,6 +14,7 @@ role :web, "<server's hostname>"
 
 set :user, "<username>"
 set :via, "scp"
+set :deploy_via, :copy
 set :use_sudo, false
 ssh_options[:forward_agent] = true
 
