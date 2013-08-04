@@ -13,3 +13,6 @@
 [submodule "themes/hisrocket-vertical"]
 	path = themes/hisrocket-vertical
 	url = git@github.com:eehah5ru/hisrocket-theme.git
+[submodule "themes/hisrocket-vertical-with-bkg"]
+	path = themes/hisrocket-vertical-with-bkg
+	url = git@github.com:eehah5ru/hisrocket-theme.git
